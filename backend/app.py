@@ -37,8 +37,12 @@ def _to_iso(value):
     if isinstance(value, datetime):
         return value.strftime("%Y-%m-%dT%H:%M:%S")
     text = str(value).strip().replace(" ", "T")
+    # Strip trailing Z or +HH:MM / -HH:MM so the frontend always receives a
+    # clean naive UTC string (TransactionStatus.jsx appends 'Z' itself).
     if text.endswith("Z"):
         text = text[:-1]
+    elif len(text) > 6 and text[-6] in ("+", "-"):
+        text = text[:-6]
     return text
 
 
@@ -173,7 +177,7 @@ def process_transfer(data):
 def health():
     return jsonify({
         "status": "ok",
-        "storage": "supabase" if using_supabase() else "sqlite",
+        "storage": "supabase",
     }), 200
 
 

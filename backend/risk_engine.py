@@ -72,11 +72,12 @@ def is_high_velocity(user, window_minutes=None, count_threshold=None):
     if count_threshold is None:
         count_threshold = VELOCITY_COUNT_THRESHOLD
     recent_timestamps = user.get("recent_transactions", [])
-    now = datetime.now()
 
     recent_count = sum(
-        1 for ts in recent_timestamps
-        if now - ts <= timedelta(minutes=window_minutes)
+        1
+        for ts in recent_timestamps
+        if datetime.now(ts.tzinfo if ts.tzinfo else None) - ts
+        <= timedelta(minutes=window_minutes)
     )
     return recent_count >= count_threshold
 
