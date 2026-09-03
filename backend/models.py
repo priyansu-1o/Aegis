@@ -75,6 +75,30 @@ def init_db():
         if "cooling_off_expiry" not in existing_cols:
             cursor.execute("ALTER TABLE transactions ADD COLUMN cooling_off_expiry TIMESTAMP")
 
+    # Audit log table — append-only, never updated
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS audit_log (
+            log_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            tx_id       INTEGER NOT NULL,
+            event       TEXT NOT NULL,
+            actor_id    INTEGER,
+            actor_role  TEXT,
+            risk_score  INTEGER,
+            details     TEXT,
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(tx_id) REFERENCES transactions(tx_id)
+        )
+    """)
+
+    # Auth columns — added by migration; safe to attempt here for fresh DBs
+    cursor.execute("PRAGMA table_info(users)")
+    user_cols = {row[1] for row in cursor.fetchall()}
+    if user_cols:
+        if "email" not in user_cols:
+            cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
+        if "password_hash" not in user_cols:
+            cursor.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+
 
     demo_users = [
         (1, "Priya (Caregiver)", "caregiver", None, 0.0),
@@ -317,7 +341,10 @@ def set_transaction_resolution(
     new_status,
     resolution
 ):
-
+    # ── Race-condition guard ───────────────────────────────────────────────────
+    # Only update when the transaction is still pending.  This makes the update
+    # a no-op if check_expiry or a concurrent caregiver resolve already fired,
+    # preventing two conflicting resolutions on the same transaction.
     conn = get_connection()
 
     conn.execute("""
@@ -327,6 +354,7 @@ def set_transaction_resolution(
             resolution = ?
 
         WHERE tx_id = ?
+        AND   status = 'pending_caregiver_approval'
     """, (
         new_status,
         resolution,
@@ -433,6 +461,81 @@ def get_transactions_by_sender(sender_id):
         ORDER BY t.created_at DESC
         """,
         (sender_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+# ── Auth helpers ──────────────────────────────────────────────────────────────
+
+def get_user_by_email(email):
+    """Look up a user by their email address (used during login)."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM users WHERE email = ?",
+        (email,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def set_password_hash(user_id, password_hash):
+    """Persist a bcrypt password hash for the given user."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE users SET password_hash = ? WHERE user_id = ?",
+        (password_hash, user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+# ── Audit log ───────────────────────────────────────────────────────────────
+
+def log_audit_event(
+    tx_id: int,
+    event: str,
+    actor_id: int | None = None,
+    actor_role: str | None = None,
+    risk_score: int | None = None,
+    details: str | None = None,
+):
+    """
+    Append one immutable row to the audit_log table.
+
+    event values used by the app:
+        'transaction_created'   — new tx submitted by senior
+        'auto_approved'         — risk score below threshold
+        'hold_created'          — risk score at/above threshold, cooling-off started
+        'caregiver_approved'    — caregiver manually approved
+        'caregiver_blocked'     — caregiver manually blocked
+        'expired_no_response'   — cooling-off window elapsed, auto-blocked
+    """
+    conn = get_connection()
+    conn.execute(
+        """
+        INSERT INTO audit_log
+            (tx_id, event, actor_id, actor_role, risk_score, details)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (tx_id, event, actor_id, actor_role, risk_score, details),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_audit_log(tx_id: int) -> list[dict]:
+    """Return the full ordered audit trail for a single transaction."""
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT log_id, tx_id, event, actor_id, actor_role,
+               risk_score, details, created_at
+        FROM   audit_log
+        WHERE  tx_id = ?
+        ORDER  BY log_id ASC
+        """,
+        (tx_id,),
     ).fetchall()
     conn.close()
     return [dict(row) for row in rows]

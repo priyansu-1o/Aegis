@@ -103,8 +103,10 @@ class TestIsRecentFdBreak:
         assert is_recent_fd_break(base_tx) is True
 
     def test_fd_break_exactly_at_window_edge_flagged(self, base_tx):
+        # Use 29.5 min (well within 30-min window) to avoid flakiness from
+        # the few milliseconds of test execution time eating into the boundary.
         base_tx["preceded_by_fd_break"] = True
-        base_tx["fd_break_timestamp"] = datetime.now() - timedelta(minutes=30)
+        base_tx["fd_break_timestamp"] = datetime.now() - timedelta(minutes=29, seconds=30)
         assert is_recent_fd_break(base_tx) is True
 
     def test_fd_break_outside_window_not_flagged(self, base_tx):

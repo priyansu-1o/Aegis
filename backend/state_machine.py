@@ -23,7 +23,7 @@ def _parse_datetime(value):
 def create_hold(transaction, cooling_off_seconds):
     """Puts a transaction into a pending hold with an expiry time."""
     transaction["status"] = "pending_caregiver_approval"
-    transaction["cooling_off_expiry"] = datetime.utcnow() + timedelta(seconds=cooling_off_seconds)
+    transaction["cooling_off_expiry"] = datetime.now() + timedelta(seconds=cooling_off_seconds)
     return transaction
 
 
@@ -54,7 +54,7 @@ def check_expiry(transaction):
         return transaction
 
     transaction["cooling_off_expiry"] = expiry
-    now = datetime.now(expiry.tzinfo) if expiry.tzinfo else datetime.utcnow()
+    now = datetime.now(expiry.tzinfo) if expiry.tzinfo else datetime.now()
     if now >= expiry:
         transaction["status"] = "blocked"
         transaction["resolution"] = "expired_no_response"

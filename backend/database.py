@@ -1,287 +1,268 @@
 """
-Supabase persistence layer.
+database.py — Storage abstraction layer
+=======================================
+Uses Supabase when SUPABASE_URL and SUPABASE_KEY are both set in the
+environment (or a .env file).  Falls back to the SQLite implementation
+in models.py when those variables are absent — so local development works
+without any cloud credentials.
 
-Expected Supabase tables (same columns as SQLite):
-
-  users(user_id, name, role, caregiver_id, baseline_avg_tx)
-  transactions(
-      tx_id, sender_id, payee_name, payee_account, amount, note,
-      risk_score, risk_reasons, status, resolution, cooling_off_expiry, created_at
-  )
+The public API exposed by this module is identical regardless of which
+backend is active, so the rest of the application never needs to branch.
 """
-from datetime import datetime, timedelta
 
-from config import SUPABASE_URL, SUPABASE_KEY, VELOCITY_WINDOW_MINUTES
+import os
 
-_supabase_client = None
+from config import SUPABASE_URL, SUPABASE_KEY
 
+# ── Backend selection ─────────────────────────────────────────────────────────
 
-def using_supabase():
-    return True
+_USE_SUPABASE = bool(SUPABASE_URL and SUPABASE_KEY)
 
-
-def _client():
-    global _supabase_client
-    if _supabase_client is None:
-        if not SUPABASE_URL or not SUPABASE_KEY:
-            raise RuntimeError(
-                "Supabase is required. Set SUPABASE_URL and SUPABASE_KEY "
-                "(or SUPABASE_SERVICE_ROLE_KEY) in backend/.env."
-            )
-        from supabase import create_client
-        _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    return _supabase_client
-
-
-def _row(data):
-    return dict(data) if data else None
-
-
-def _iso(value):
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value.isoformat(timespec="seconds")
-    return str(value)
-
-
-def _reasons_to_str(risk_reasons):
-    if isinstance(risk_reasons, list):
-        return ", ".join(risk_reasons)
-    return str(risk_reasons or "")
-
-
-DEMO_USERS = [
-    {
-        "user_id": 1,
-        "name": "Priya (Caregiver)",
-        "role": "caregiver",
-        "caregiver_id": None,
-        "baseline_avg_tx": 0.0,
-    },
-    {
-        "user_id": 2,
-        "name": "Meena Sharma",
-        "role": "senior",
-        "caregiver_id": 1,
-        "baseline_avg_tx": 2000.0,
-    },
-    {
-        "user_id": 101,
-        "name": "Ramesh (Senior)",
-        "role": "senior",
-        "caregiver_id": 201,
-        "baseline_avg_tx": 2000.0,
-    },
-    {
-        "user_id": 201,
-        "name": "Priya (Caregiver)",
-        "role": "caregiver",
-        "caregiver_id": None,
-        "baseline_avg_tx": 0.0,
-    },
-]
-
-
-def init_db():
-    client = _client()
-    for user in DEMO_USERS:
-        existing = (
-            client.table("users")
-            .select("user_id")
-            .eq("user_id", user["user_id"])
-            .execute()
-            .data
+if _USE_SUPABASE:
+    try:
+        from supabase import create_client as _create_client
+        _HAS_SUPABASE_PKG = True
+    except ImportError:
+        _HAS_SUPABASE_PKG = False
+        _USE_SUPABASE = False
+        print(
+            "[database] WARNING: SUPABASE_URL/KEY are set but the 'supabase' "
+            "package is not installed. Falling back to SQLite."
         )
-        if not existing:
-            client.table("users").insert(user).execute()
-    print("Supabase initialization complete.")
+else:
+    _HAS_SUPABASE_PKG = False
 
 
-def get_user(user_id):
-    rows = (
-        _client()
-        .table("users")
-        .select("*")
-        .eq("user_id", user_id)
-        .execute()
-        .data
+def using_supabase() -> bool:
+    """Returns True only when a live Supabase connection is being used."""
+    return _USE_SUPABASE
+
+
+# ── SQLite fallback (models.py re-exported) ───────────────────────────────────
+
+if not _USE_SUPABASE:
+    # Re-export every public function from the SQLite implementation so that
+    # app.py keeps a single clean import surface: `from database import ...`
+    from models import (
+        init_db,
+        get_user,
+        get_all_users,
+        get_risk_user_data,
+        create_transaction,
+        get_transaction,
+        get_pending_transactions_for_caregiver,
+        get_transactions_by_sender,
+        update_transaction_status,
+        set_transaction_hold,
+        set_transaction_resolution,
+        get_known_payees,
+        get_recent_transaction_timestamps,
+        get_user_by_email,
+        set_password_hash,
+        log_audit_event,
+        get_audit_log,
     )
-    return _row(rows[0]) if rows else None
 
+# ── Supabase implementation ───────────────────────────────────────────────────
 
-def get_all_users():
-    rows = (
-        _client()
-        .table("users")
-        .select("*")
-        .order("user_id")
-        .execute()
-        .data
-    )
-    return [dict(row) for row in (rows or [])]
+else:
+    from datetime import datetime, timedelta
+    from config import VELOCITY_WINDOW_MINUTES
 
+    _supabase_client = None
 
-def get_risk_user_data(sender_id):
-    user = get_user(sender_id)
-    if not user:
-        return None
-    return {
-        "user_id": sender_id,
-        "known_payees": get_known_payees(sender_id),
-        "avg_transaction_amount": user.get("baseline_avg_tx") or 5000.0,
-        "recent_transactions": get_recent_transaction_timestamps(
-            sender_id, minutes=VELOCITY_WINDOW_MINUTES
-        ),
-    }
+    def _client():
+        global _supabase_client
+        if _supabase_client is None:
+            _supabase_client = _create_client(SUPABASE_URL, SUPABASE_KEY)
+        return _supabase_client
 
+    def _row(data):
+        return dict(data) if data else None
 
-def create_transaction(
-    sender_id,
-    payee_name,
-    payee_account,
-    amount,
-    risk_score,
-    risk_reasons,
-    status,
-    note="",
-    resolution=None,
-    cooling_off_expiry=None,
-):
-    payload = {
-        "sender_id": sender_id,
-        "payee_name": payee_name,
-        "payee_account": payee_account,
-        "amount": amount,
-        "note": note,
-        "risk_score": risk_score,
-        "risk_reasons": _reasons_to_str(risk_reasons),
-        "status": status,
-        "resolution": resolution,
-        "cooling_off_expiry": _iso(cooling_off_expiry),
-    }
-    rows = _client().table("transactions").insert(payload).execute().data
-    if not rows:
-        raise RuntimeError("Supabase insert did not return a transaction row")
-    return rows[0]["tx_id"]
+    def _iso(value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.isoformat(timespec="seconds")
+        return str(value)
 
+    def _reasons_to_str(risk_reasons):
+        if isinstance(risk_reasons, list):
+            return ", ".join(risk_reasons)
+        return str(risk_reasons or "")
 
-def _attach_sender(row):
-    if not row:
-        return None
-    tx = dict(row)
-    sender = get_user(tx.get("sender_id"))
-    tx["sender_name"] = sender["name"] if sender else None
-    return tx
+    DEMO_USERS = [
+        {"user_id": 1,   "name": "Priya (Caregiver)", "role": "caregiver", "caregiver_id": None, "baseline_avg_tx": 0.0},
+        {"user_id": 2,   "name": "Meena Sharma",       "role": "senior",    "caregiver_id": 1,    "baseline_avg_tx": 2000.0},
+        {"user_id": 101, "name": "Ramesh (Senior)",    "role": "senior",    "caregiver_id": 201,  "baseline_avg_tx": 2000.0},
+        {"user_id": 201, "name": "Priya (Caregiver)",  "role": "caregiver", "caregiver_id": None, "baseline_avg_tx": 0.0},
+    ]
 
+    def init_db():
+        client = _client()
+        for user in DEMO_USERS:
+            existing = (
+                client.table("users")
+                .select("user_id")
+                .eq("user_id", user["user_id"])
+                .execute()
+                .data
+            )
+            if not existing:
+                client.table("users").insert(user).execute()
+        print("Supabase initialization complete.")
 
-def get_transaction(tx_id):
-    rows = (
-        _client()
-        .table("transactions")
-        .select("*")
-        .eq("tx_id", tx_id)
-        .execute()
-        .data
-    )
-    return _attach_sender(rows[0]) if rows else None
+    def get_user(user_id):
+        rows = _client().table("users").select("*").eq("user_id", user_id).execute().data
+        return _row(rows[0]) if rows else None
 
+    def get_user_by_email(email):
+        rows = _client().table("users").select("*").eq("email", email).execute().data
+        return _row(rows[0]) if rows else None
 
-def get_pending_transactions_for_caregiver(caregiver_id):
-    rows = (
-        _client()
-        .table("transactions")
-        .select("*")
-        .eq("status", "pending_caregiver_approval")
-        .order("created_at", desc=True)
-        .execute()
-        .data
-        or []
-    )
-    pending = []
-    for row in rows:
-        tx = _attach_sender(row)
-        sender = get_user(row.get("sender_id"))
-        if sender and sender.get("caregiver_id") == caregiver_id:
-            pending.append(tx)
-    return pending
+    def set_password_hash(user_id, password_hash):
+        _client().table("users").update({"password_hash": password_hash}).eq("user_id", user_id).execute()
 
+    def get_all_users():
+        rows = _client().table("users").select("*").order("user_id").execute().data
+        return [dict(row) for row in (rows or [])]
 
-def get_transactions_by_sender(sender_id):
-    rows = (
-        _client()
-        .table("transactions")
-        .select("*")
-        .eq("sender_id", sender_id)
-        .order("created_at", desc=True)
-        .execute()
-        .data
-        or []
-    )
-    return [_attach_sender(row) for row in rows]
+    def get_risk_user_data(sender_id):
+        user = get_user(sender_id)
+        if not user:
+            return None
+        return {
+            "user_id": sender_id,
+            "known_payees": get_known_payees(sender_id),
+            "avg_transaction_amount": user.get("baseline_avg_tx") or 5000.0,
+            "recent_transactions": get_recent_transaction_timestamps(
+                sender_id, minutes=VELOCITY_WINDOW_MINUTES
+            ),
+        }
 
+    def create_transaction(sender_id, payee_name, payee_account, amount,
+                           risk_score, risk_reasons, status, note="",
+                           resolution=None, cooling_off_expiry=None):
+        payload = {
+            "sender_id": sender_id, "payee_name": payee_name,
+            "payee_account": payee_account, "amount": amount, "note": note,
+            "risk_score": risk_score, "risk_reasons": _reasons_to_str(risk_reasons),
+            "status": status, "resolution": resolution,
+            "cooling_off_expiry": _iso(cooling_off_expiry),
+        }
+        rows = _client().table("transactions").insert(payload).execute().data
+        if not rows:
+            raise RuntimeError("Supabase insert did not return a transaction row")
+        return rows[0]["tx_id"]
 
-def update_transaction_status(tx_id, new_status):
-    _client().table("transactions").update({"status": new_status}).eq("tx_id", tx_id).execute()
+    def _attach_sender(row):
+        if not row:
+            return None
+        tx = dict(row)
+        sender = get_user(tx.get("sender_id"))
+        tx["sender_name"] = sender["name"] if sender else None
+        return tx
 
+    def get_transaction(tx_id):
+        rows = _client().table("transactions").select("*").eq("tx_id", tx_id).execute().data
+        return _attach_sender(rows[0]) if rows else None
 
-def set_transaction_hold(tx_id, cooling_off_expiry):
-    _client().table("transactions").update({
-        "status": "pending_caregiver_approval",
-        "cooling_off_expiry": _iso(cooling_off_expiry),
-    }).eq("tx_id", tx_id).execute()
+    def get_pending_transactions_for_caregiver(caregiver_id):
+        rows = (
+            _client().table("transactions").select("*")
+            .eq("status", "pending_caregiver_approval")
+            .order("created_at", desc=True).execute().data or []
+        )
+        pending = []
+        for row in rows:
+            tx = _attach_sender(row)
+            sender = get_user(row.get("sender_id"))
+            if sender and sender.get("caregiver_id") == caregiver_id:
+                pending.append(tx)
+        return pending
 
+    def get_transactions_by_sender(sender_id):
+        rows = (
+            _client().table("transactions").select("*")
+            .eq("sender_id", sender_id).order("created_at", desc=True)
+            .execute().data or []
+        )
+        return [_attach_sender(row) for row in rows]
 
-def set_transaction_resolution(tx_id, new_status, resolution):
-    _client().table("transactions").update({
-        "status": new_status,
-        "resolution": resolution,
-    }).eq("tx_id", tx_id).execute()
+    def update_transaction_status(tx_id, new_status):
+        _client().table("transactions").update({"status": new_status}).eq("tx_id", tx_id).execute()
 
+    def set_transaction_hold(tx_id, cooling_off_expiry):
+        _client().table("transactions").update({
+            "status": "pending_caregiver_approval",
+            "cooling_off_expiry": _iso(cooling_off_expiry),
+        }).eq("tx_id", tx_id).execute()
 
-def get_known_payees(sender_id):
-    rows = (
-        _client()
-        .table("transactions")
-        .select("payee_account")
-        .eq("sender_id", sender_id)
-        .eq("status", "approved")
-        .execute()
-        .data
-        or []
-    )
-    return {row["payee_account"] for row in rows if row.get("payee_account")}
+    def set_transaction_resolution(tx_id, new_status, resolution):
+        # ── Race-condition guard ───────────────────────────────────────────────
+        # Only update when the transaction is still pending.  This prevents a
+        # check_expiry pass from overwriting a manual caregiver resolve (or
+        # vice-versa) when both fire within the same polling window.
+        _client().table("transactions").update({
+            "status": new_status,
+            "resolution": resolution,
+        }).eq("tx_id", tx_id).eq("status", "pending_caregiver_approval").execute()
 
+    def get_known_payees(sender_id):
+        rows = (
+            _client().table("transactions").select("payee_account")
+            .eq("sender_id", sender_id).eq("status", "approved")
+            .execute().data or []
+        )
+        return {row["payee_account"] for row in rows if row.get("payee_account")}
 
-def get_recent_transaction_timestamps(sender_id, minutes=10):
-    cutoff = datetime.now() - timedelta(minutes=minutes)
-    rows = (
-        _client()
-        .table("transactions")
-        .select("created_at")
-        .eq("sender_id", sender_id)
-        .gte("created_at", cutoff.isoformat())
-        .order("created_at", desc=True)
-        .execute()
-        .data
-        or []
-    )
-    timestamps = []
-    for row in rows:
-        created_at_val = row.get("created_at")
-        if not created_at_val:
-            continue
-        if isinstance(created_at_val, datetime):
-            timestamps.append(created_at_val)
-            continue
-        text = str(created_at_val).replace("Z", "")
-        try:
-            timestamps.append(datetime.fromisoformat(text))
-        except ValueError:
-            pass
-    return timestamps
+    def get_recent_transaction_timestamps(sender_id, minutes=10):
+        cutoff = datetime.now() - timedelta(minutes=minutes)
+        rows = (
+            _client().table("transactions").select("created_at")
+            .eq("sender_id", sender_id).gte("created_at", cutoff.isoformat())
+            .order("created_at", desc=True).execute().data or []
+        )
+        timestamps = []
+        for row in rows:
+            val = row.get("created_at")
+            if not val:
+                continue
+            if isinstance(val, datetime):
+                timestamps.append(val)
+                continue
+            text = str(val).replace("Z", "")
+            try:
+                timestamps.append(datetime.fromisoformat(text))
+            except ValueError:
+                pass
+        return timestamps
 
+    def log_audit_event(
+        tx_id,
+        event,
+        actor_id=None,
+        actor_role=None,
+        risk_score=None,
+        details=None,
+    ):
+        _client().table("audit_log").insert({
+            "tx_id":      tx_id,
+            "event":      event,
+            "actor_id":   actor_id,
+            "actor_role": actor_role,
+            "risk_score": risk_score,
+            "details":    details,
+        }).execute()
 
-if __name__ == "__main__":
-    init_db()
-    print("Backend: supabase")
+    def get_audit_log(tx_id):
+        rows = (
+            _client().table("audit_log").select("*")
+            .eq("tx_id", tx_id).order("log_id").execute().data or []
+        )
+        return [dict(row) for row in rows]
+
+    if __name__ == "__main__":
+        init_db()
+        print("Backend: supabase")
