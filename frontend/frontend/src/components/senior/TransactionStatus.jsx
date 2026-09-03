@@ -12,15 +12,34 @@ import { useSocket } from '../../utils/useSocket';
  *   FALLBACK — 5-second polling (reduced from 2 s; socket covers the fast path).
  */
 function TransactionStatus({ transaction, onDone }) {
+  // Guard: if no transaction data at all, show a neutral error card
+  if (!transaction) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--color-bg)' }}>
+        <div className="container stack-loose" style={{ paddingTop: 'var(--space-6)' }}>
+          <div className="card" style={{ textAlign: 'center', padding: 'var(--space-6)' }}>
+            <p style={{ fontWeight: 600 }}>No transaction data found.</p>
+            <p className="text-soft" style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-2)' }}>
+              Please go back and try again.
+            </p>
+            <button className="btn btn-secondary" style={{ marginTop: 'var(--space-4)' }} onClick={onDone}>
+              Back to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const {
     txId,
-    amount = 1500000,
-    beneficiary = 'Raj Enterprises',
-    riskReasons = ['High transaction amount', 'New beneficiary', 'Unusual transaction activity'],
+    amount           = 0,
+    beneficiary      = '—',
+    riskReasons      = [],
     status: rawInitialStatus = 'PENDING_APPROVAL',
     coolingOffExpiry = null,
-    transactionType = 'transfer',
-  } = transaction || {};
+    transactionType  = 'transfer',
+  } = transaction;
 
   const isFDBreak = transactionType === 'fd_break';
 
@@ -199,7 +218,7 @@ function TransactionStatus({ transaction, onDone }) {
             </div>
           )}
 
-          {/* Show tx_id for easy cross-reference in demo */}
+          {/* Show tx_id for easy cross-reference */}
           {txId && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="text-soft" style={{ fontSize: 'var(--text-sm)' }}>Reference</span>
@@ -211,7 +230,7 @@ function TransactionStatus({ transaction, onDone }) {
         </div>
 
         {/* Risk reasons — only shown while pending */}
-        {isPending && (
+        {isPending && riskReasons.length > 0 && (
           <div className="card-flush stack-tight">
             <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)' }}>Why was this flagged?</span>
             <ul className="stack-tight" style={{ listStyle: 'none' }}>

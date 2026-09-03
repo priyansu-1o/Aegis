@@ -3,7 +3,7 @@ import { getTransactions } from '../../utils/api';
 
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN')}`;
 
-export default function ReferenceSeniorDashboard({ currentUser, onTransfer, onBreakFD, onLogout }) {
+export default function ReferenceSeniorDashboard({ currentUser, onTransfer, onBreakFD, onLogout, balance = 845000 }) {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const refresh = async () => {
@@ -16,9 +16,9 @@ export default function ReferenceSeniorDashboard({ currentUser, onTransfer, onBr
   return <div className="ref-skin">
     <header className="ref-header"><div className="ref-header-inner"><div className="ref-brand"><span className="brand-mark">♜</span> AEGIS</div><div style={{display:'flex',gap:10,alignItems:'center'}}><span className="user-pill">Sender · {currentUser?.name}</span><button className="utility-button" onClick={onLogout}>↗ Sign out</button></div></div></header>
     <main className="app-wrap">
-      <div className="partner-banner"><div className="partner-info"><div className="partner-icon">🛡</div><div><div className="partner-title">Protected by Caregiver: Priya</div><div className="partner-sub">Suspicious transactions are routed to your caregiver.</div></div></div></div>
+      <div className="partner-banner"><div className="partner-info"><div className="partner-icon">🛡</div><div><div className="partner-title">Account Protected by Aegis</div><div className="partner-sub">Suspicious transactions are routed to your caregiver for review.</div></div></div></div>
       <div className="ref-page-heading"><div><h1>Good {new Date().getHours() < 12 ? 'morning' : 'afternoon'}, {currentUser?.name?.split(' ')[0] || 'there'} 👋</h1><p>Your money is protected by Aegis.</p></div><span className="demo-badge">Demo / Simulated Account Data</span></div>
-      <section className="stat-grid"><div className="stat-card"><div className="stat-label">Available Balance</div><div className="stat-value">₹1,50,000</div></div><div className="stat-card"><div className="stat-label">Transactions Today</div><div className="stat-value">{transactions.length}</div></div><div className="stat-card"><div className="stat-label">Protected Today</div><div className="stat-value" style={{color:'var(--forest)'}}>{money(protectedToday)}</div></div></section>
+      <section className="stat-grid"><div className="stat-card"><div className="stat-label">Available Balance</div><div className="stat-value">{money(balance)}</div></div><div className="stat-card"><div className="stat-label">Transactions Today</div><div className="stat-value">{transactions.length}</div></div><div className="stat-card"><div className="stat-label">Protected Today</div><div className="stat-value" style={{color:'var(--forest)'}}>{money(protectedToday)}</div></div></section>
       <button className="action-main" onClick={onTransfer}>↗ &nbsp; Send Money Safely</button>
       <button className="btn btn-secondary" style={{marginBottom:20}} onClick={onBreakFD}>Manage Fixed Deposit</button>
       <section className="reference-card"><div className="reference-card-head"><div><div className="reference-card-title">Recent Transactions</div><div className="reference-card-sub">Protected by Aegis Risk Engine</div></div><button className="refresh-button" onClick={refresh}>↻ <span>Refresh</span></button></div>

@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from flask_socketio import SocketIO, join_room, emit as socket_emit
 from datetime import datetime
+import os
 
 import bcrypt
 
@@ -22,6 +23,7 @@ from database import (
     set_transaction_resolution,
     log_audit_event,
     get_audit_log,
+    link_caregiver_to_senior,
 )
 from risk_engine import evaluate_transaction
 from state_machine import create_hold, check_expiry, resolve_hold
@@ -36,16 +38,14 @@ from auth import (
 )
 
 
+
 app = Flask(__name__)
 
-CORS_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "http://127.0.0.1:5175",
-]
+CORS_ORIGINS = [origin.strip() for origin in os.getenv(
+    "FRONTEND_ORIGINS",
+    "http://localhost:5173,http://localhost:5174,http://localhost:5175,"
+    "http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5175",
+).split(",") if origin.strip()]
 CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
 
 # ── SocketIO ──────────────────────────────────────────────────────────────────
@@ -193,16 +193,44 @@ def api_signup():
     if get_user_by_email(email):
         return error("An account with this email already exists", 409)
 
+    link_code = (data.get("link_code") or "").strip()
+
     try:
         password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
         user = create_user(name, email, password_hash, role)
     except Exception as exc:
         return error(str(exc), 500)
 
+    # ── Caregiver linking ─────────────────────────────────────────────────────
+    # If a caregiver signs up with a link_code (the senior's user_id), write
+    # the new caregiver's id onto the senior's row so pending-list filtering
+    # works immediately.
+    link_warning = None
+    if role == "caregiver" and link_code:
+        try:
+            senior_id = int(link_code)
+            senior = get_user(senior_id)
+            if not senior:
+                link_warning = f"No senior found with id '{link_code}'"
+            elif senior["role"] != "senior":
+                link_warning = f"User '{link_code}' is not a senior"
+            elif senior.get("caregiver_id"):
+                link_warning = "That senior is already linked to a caregiver"
+            else:
+                link_caregiver_to_senior(
+                    senior_id=senior_id,
+                    caregiver_id=user["user_id"],
+                )
+        except (ValueError, TypeError):
+            link_warning = f"Invalid link code '{link_code}'"
+        except Exception as exc:
+            link_warning = f"Linking failed: {exc}"
+
     token = generate_token(user)
-    response = jsonify({
-        "user": {"user_id": user["user_id"], "name": user["name"], "role": user["role"]}
-    })
+    body = {"user": {"user_id": user["user_id"], "name": user["name"], "role": user["role"]}}
+    if link_warning:
+        body["link_warning"] = link_warning
+    response = jsonify(body)
     set_auth_cookie(response, token)
     return response, 201
 

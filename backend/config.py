@@ -15,6 +15,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_KEY = (
     os.getenv("SUPABASE_KEY", "").strip()
     or os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    or os.getenv("SUPABASE_ANON_KEY", "").strip()
 )
 
 # ── Risk engine ──────────────────────────────────────────────────────────────

@@ -1,19 +1,21 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5173,
-    proxy: {
-      // Forward all /api requests to the Flask backend.
-      // This keeps the absolute BASE_URL = 'http://localhost:5000' in api.js
-      // working correctly during development without any CORS issues.
-      '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const apiBase = env.VITE_API_BASE || 'http://localhost:5000'
+
+  return {
+    plugins: [react()],
+    server: {
+      port: 5173,
+      proxy: {
+        '/api': {
+          target: apiBase,
+          changeOrigin: true,
+        },
       },
     },
-  },
+  }
 })

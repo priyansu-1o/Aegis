@@ -62,6 +62,7 @@ if not _USE_SUPABASE:
         create_user,
         log_audit_event,
         get_audit_log,
+        link_caregiver_to_senior,
     )
 
 # ── Supabase implementation ───────────────────────────────────────────────────
@@ -276,6 +277,12 @@ else:
             .eq("tx_id", tx_id).order("log_id").execute().data or []
         )
         return [dict(row) for row in rows]
+
+    def link_caregiver_to_senior(senior_id, caregiver_id):
+        """Set senior.caregiver_id = caregiver_id in Supabase."""
+        _client().table("users").update(
+            {"caregiver_id": caregiver_id}
+        ).eq("user_id", senior_id).eq("role", "senior").execute()
 
     if __name__ == "__main__":
         init_db()

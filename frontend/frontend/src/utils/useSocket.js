@@ -21,7 +21,7 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:5000';
+const SOCKET_URL = (import.meta.env.VITE_API_BASE || 'http://localhost:5000').replace(/\/$/, '');
 
 // Single shared socket instance — avoids reconnecting on every render
 let _socket = null;

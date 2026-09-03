@@ -6,17 +6,19 @@ import { useState } from 'react';
  * - loading spinner while the API call is in flight
  * - inline error display if the API returns an error
  */
-function TransferForm({ onBack, onSubmit, apiError }) {
+function TransferForm({ onBack, onSubmit, apiError, balance = 0 }) {
   const [step, setStep] = useState('form'); // 'form' | 'review'
-  const [payeeName, setPayeeName] = useState('Raj Enterprises');
-  const [payeeAccount, setPayeeAccount] = useState('9876543210');
-  const [amount, setAmount] = useState('1500000');
+  const [payeeName,    setPayeeName]    = useState('');
+  const [payeeAccount, setPayeeAccount] = useState('');
+  const [amount,       setAmount]       = useState('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // A payee is "new" if its account number doesn't exist in prior approved tx.
-  // For the demo we always mark it as new (backend tracks this via risk engine).
-  const isNewBeneficiary = true;
+  // A payee is "new" if they've never been paid before.
+  // We leave this as a UI hint only — backend risk engine is the real arbiter.
+  // We can't know locally without fetching prior transactions, so we only
+  // show the pill when account looks new (non-empty and not a prior session).
+  const isNewBeneficiary = Boolean(payeeAccount);
 
   const formatINR = (value) => {
     const num = Number(String(value).replace(/[^0-9]/g, ''));
@@ -24,11 +26,17 @@ function TransferForm({ onBack, onSubmit, apiError }) {
     return num.toLocaleString('en-IN');
   };
 
+  const numericAmount = Number(String(amount).replace(/[^0-9]/g, '')) || 0;
+  const exceedsBalance = numericAmount > balance;
+
   const handleAmountChange = (e) => {
     setAmount(e.target.value.replace(/[^0-9]/g, ''));
   };
 
-  const handleContinue = () => setStep('review');
+  const handleContinue = () => {
+    if (exceedsBalance) return; // guard — button is also disabled, but belt-and-suspenders
+    setStep('review');
+  };
 
   const handleConfirm = async () => {
     setLoading(true);
@@ -102,7 +110,12 @@ function TransferForm({ onBack, onSubmit, apiError }) {
               </label>
               <div
                 className="card"
-                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', border: '1px solid var(--color-border-strong)' }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                  border: exceedsBalance
+                    ? '1.5px solid var(--color-status-held-text)'
+                    : '1px solid var(--color-border-strong)',
+                }}
               >
                 <span className="font-serif" style={{ fontSize: 'var(--text-lg)', color: 'var(--color-ink-faint)' }}>₹</span>
                 <input
@@ -115,6 +128,40 @@ function TransferForm({ onBack, onSubmit, apiError }) {
                   style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 'var(--text-lg)', width: '100%' }}
                 />
               </div>
+
+              {/* Available balance hint — always visible */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-ink-faint)' }}>
+                  Available balance
+                </span>
+                <span
+                  style={{
+                    fontSize: 'var(--text-xs)', fontWeight: 600,
+                    color: exceedsBalance
+                      ? 'var(--color-status-held-text)'
+                      : 'var(--color-status-safe-text)',
+                  }}
+                >
+                  ₹{balance.toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              {/* Inline error when amount exceeds balance */}
+              {exceedsBalance && numericAmount > 0 && (
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                    background: 'var(--color-status-held-bg)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: 'var(--space-2) var(--space-3)',
+                    marginTop: 'var(--space-1)',
+                  }}
+                >
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-status-held-text)', fontWeight: 600 }}>
+                    ⚠ Amount exceeds your available balance of ₹{balance.toLocaleString('en-IN')}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Optional note */}
@@ -136,7 +183,7 @@ function TransferForm({ onBack, onSubmit, apiError }) {
             <button
               className="btn btn-primary"
               onClick={handleContinue}
-              disabled={!payeeName || !payeeAccount || !amount}
+              disabled={!payeeName || !payeeAccount || !amount || exceedsBalance}
             >
               Continue
             </button>
@@ -151,7 +198,7 @@ function TransferForm({ onBack, onSubmit, apiError }) {
               <Divider />
               <SummaryRow label="Amount" value={'₹' + formatINR(amount)} large />
               <Divider />
-              <SummaryRow label="From" value="Savings Account · ····4821" />
+              <SummaryRow label="From" value="Savings Account" />
               {note && (
                 <>
                   <Divider />

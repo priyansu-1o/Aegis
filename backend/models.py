@@ -507,6 +507,18 @@ def create_user(name, email, password_hash, role):
     return get_user(user_id)
 
 
+def link_caregiver_to_senior(senior_id: int, caregiver_id: int) -> None:
+    """Set senior.caregiver_id = caregiver_id so the pending-list filter works."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE users SET caregiver_id = ? WHERE user_id = ? AND role = 'senior'",
+        (caregiver_id, senior_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+
 # ── Audit log ───────────────────────────────────────────────────────────────
 
 def log_audit_event(

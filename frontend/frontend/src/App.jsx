@@ -77,7 +77,7 @@ function CaregiverApp({ currentUser, onLogout }) {
     <div className="ref-skin">
       <header className="ref-header"><div className="ref-header-inner"><div className="ref-brand"><span className="brand-mark">♜</span> AEGIS</div><div style={{display:'flex',alignItems:'center',gap:10}}><span className="user-pill">Caregiver · {currentUser?.name}</span><button onClick={onLogout} className="utility-button">↗ Sign out</button></div></div></header>
       <main className="app-wrap">
-        <div className="partner-banner"><div className="partner-info"><div className="partner-icon" style={{background:'rgba(200,168,93,.15)',color:'var(--gold-dark)'}}>🛡</div><div><div className="partner-title">Protecting Sender: Meena Sharma</div><div className="partner-sub">You receive approval requests for held transactions.</div></div></div></div>
+        <div className="partner-banner"><div className="partner-info"><div className="partner-icon" style={{background:'rgba(200,168,93,.15)',color:'var(--gold-dark)'}}>🛡</div><div><div className="partner-title">Caregiver Protection Active</div><div className="partner-sub">You receive approval requests for held transactions.</div></div></div></div>
         <div className="ref-page-heading"><div><h1>CAREGIVER PROTECTION CENTER</h1><p>Review transactions Aegis has temporarily held.</p></div><span className="demo-badge">Demo / Simulated Account Data</span></div>
         <div className="stat-grid"><div className="stat-card"><div className="stat-label">Pending Reviews</div><div className="stat-value" style={{color:'var(--gold-dark)'}}>Live</div></div><div className="stat-card"><div className="stat-label">Protected Today</div><div className="stat-value" style={{color:'var(--forest)'}}>Active</div></div><div className="stat-card"><div className="stat-label">High Risk</div><div className="stat-value" style={{color:'var(--danger)'}}>Alerts</div></div></div>
         <div className="urgent-banner">⚠ <span>Transactions needing your review appear below.</span></div>
@@ -93,9 +93,11 @@ function CaregiverApp({ currentUser, onLogout }) {
 // =============================================================================
 
 function SeniorApp({ currentUser, onLogout }) {
-  const [screen, setScreen]     = useState('balance');
+  const [screen, setScreen]       = useState('balance');
   const [currentTx, setCurrentTx] = useState(null);
-  const [apiError, setApiError] = useState(null);
+  const [apiError, setApiError]   = useState(null);
+  // Balance lives here so it can be deducted after a successful transfer
+  const [balance, setBalance]     = useState(845000);
 
   const handleBack = () => { setApiError(null); setScreen('balance'); };
 
@@ -109,7 +111,6 @@ function SeniorApp({ currentUser, onLogout }) {
   const handleTransferSubmit = async (formData) => {
     setApiError(null);
     try {
-      // sender_id is derived from the JWT on the server — not sent here
       const result = await submitTransfer({
         payee_name:    formData.payeeName,
         payee_account: formData.payeeAccount,
@@ -119,6 +120,12 @@ function SeniorApp({ currentUser, onLogout }) {
 
       const tx = result.transaction;
       saveTxId(tx.tx_id);
+
+      // Deduct from balance immediately — if the transfer is later blocked
+      // by the caregiver the senior would need to be refunded, but for the
+      // demo we deduct on submission so the balance reflects the intent.
+      setBalance((prev) => Math.max(0, prev - tx.amount));
+
       setCurrentTx({
         txId:             tx.tx_id,
         amount:           tx.amount,
@@ -148,6 +155,8 @@ function SeniorApp({ currentUser, onLogout }) {
 
       const tx = result.transaction;
       saveTxId(tx.tx_id);
+      setBalance((prev) => Math.max(0, prev - tx.amount));
+
       setCurrentTx({
         txId:             tx.tx_id,
         amount:           tx.amount,
@@ -163,22 +172,32 @@ function SeniorApp({ currentUser, onLogout }) {
     }
   };
 
-  if (screen === 'transfer') return <TransferForm onBack={handleBack} onSubmit={handleTransferSubmit} apiError={apiError} />;
-  if (screen === 'fdbreak')  return <FDBreakFlow  onBack={handleBack} onSubmit={handleFDSubmit}      apiError={apiError} />;
-  if (screen === 'status')   return <TransactionStatus transaction={currentTx} onDone={handleDone} />;
+  if (screen === 'transfer') return (
+    <TransferForm
+      onBack={handleBack}
+      onSubmit={handleTransferSubmit}
+      apiError={apiError}
+      balance={balance}
+    />
+  );
+  if (screen === 'fdbreak') return (
+    <FDBreakFlow
+      onBack={handleBack}
+      onSubmit={handleFDSubmit}
+      apiError={apiError}
+      balance={balance}
+    />
+  );
+  if (screen === 'status') return <TransactionStatus transaction={currentTx} onDone={handleDone} />;
 
   return <ReferenceSeniorDashboard
     currentUser={currentUser}
     onLogout={onLogout}
+    balance={balance}
     onTransfer={() => { setApiError(null); setScreen('transfer'); }}
     onBreakFD={() => { setApiError(null); setScreen('fdbreak'); }}
   />;
 }
-
-// =============================================================================
-// Loading spinner — shown while /api/me is in-flight on app load
-// =============================================================================
-
 function LoadingScreen() {
   return (
     <div
