@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+// Senior user ID — must match SENIOR_ID in App.jsx
+const SENIOR_ID = 2;
 
 /**
  * TransferForm — updated with:
  * - payee_account input (required by backend)
  * - loading spinner while the API call is in flight
  * - inline error display if the API returns an error
+ * - real-time new-beneficiary badge driven by the backend
  */
 function TransferForm({ onBack, onSubmit, apiError }) {
   const [step, setStep] = useState('form'); // 'form' | 'review'
@@ -13,10 +17,29 @@ function TransferForm({ onBack, onSubmit, apiError }) {
   const [amount, setAmount] = useState('1500000');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isNewBeneficiary, setIsNewBeneficiary] = useState(true);
 
-  // A payee is "new" if its account number doesn't exist in prior approved tx.
-  // For the demo we always mark it as new (backend tracks this via risk engine).
-  const isNewBeneficiary = true;
+  // Debounce: check against the backend whenever payee account changes
+  useEffect(() => {
+    if (!payeeAccount || payeeAccount.length < 5) {
+      setIsNewBeneficiary(true);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:5000/api/payees/check?sender_id=${SENIOR_ID}&payee_account=${encodeURIComponent(payeeAccount)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setIsNewBeneficiary(data.is_new_payee);
+        }
+      } catch {
+        // Network error — keep existing state, don't crash
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [payeeAccount]);
 
   const formatINR = (value) => {
     const num = Number(String(value).replace(/[^0-9]/g, ''));

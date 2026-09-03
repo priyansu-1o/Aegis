@@ -9,6 +9,7 @@ from database import (
     get_user,
     get_all_users,
     get_risk_user_data,
+    get_known_payees,
     create_transaction,
     get_transaction,
     get_pending_transactions_for_caregiver,
@@ -130,6 +131,11 @@ def process_transfer(data):
     if user.get("role") == "caregiver":
         return None, error("Caregivers cannot submit transfers", 403)
 
+    # Check if payee is known BEFORE creating the transaction so the new row
+    # doesn't pollute the known-payees lookup.
+    known_payees = get_known_payees(sender_id)
+    new_payee = payee_account not in known_payees
+
     risk_user = get_risk_user_data(sender_id)
     transaction_input = {
         "payee_name": payee_name,
@@ -170,6 +176,7 @@ def process_transfer(data):
     return {
         "transaction": public_transaction(stored),
         "risk": risk,
+        "is_new_payee": new_payee,
     }, None
 
 
@@ -184,6 +191,20 @@ def health():
 @app.route("/api/users", methods=["GET"])
 def list_users():
     return jsonify({"users": get_all_users()}), 200
+
+
+@app.route("/api/payees/check", methods=["GET"])
+def api_check_payee():
+    """Returns whether a payee_account is new for the given sender_id."""
+    try:
+        sender_id = request.args.get("sender_id", type=int)
+        payee_account = request.args.get("payee_account", "").strip()
+        if not sender_id or not payee_account:
+            return error("sender_id and payee_account are required", 400)
+        known = get_known_payees(sender_id)
+        return jsonify({"is_new_payee": payee_account not in known}), 200
+    except Exception as exc:
+        return error(str(exc), 500)
 
 
 @app.route("/api/users/<int:user_id>", methods=["GET"])
