@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { login } from '../utils/api';
 
 export default function ReferenceLoginPage({ onLogin }) {
@@ -22,7 +22,7 @@ export default function ReferenceLoginPage({ onLogin }) {
   return <div className="auth-page">
     <div className="auth-brand"><div className="ref-brand"><span className="brand-mark">♜</span> AEGIS</div></div>
     <main className="auth-shell">
-      <div className="auth-tabs"><button className="auth-tab active" type="button">Sign In</button><button className="auth-tab" type="button" disabled>Create Account</button></div>
+      <div className="auth-tabs"><button className="auth-tab active" type="button">Sign In</button><Link className="auth-tab auth-tab-link" to="/signup">Create Account</Link></div>
       <h1 className="auth-heading">Welcome Back</h1>
       <p className="auth-sub">Enter your credentials to access your dashboard.</p>
       <form onSubmit={submit} noValidate>
@@ -32,6 +32,7 @@ export default function ReferenceLoginPage({ onLogin }) {
         <button id="login-submit" className="auth-submit" type="submit" disabled={loading || !email || !password}>{loading ? 'Signing in…' : 'Sign In to Dashboard'}</button>
       </form>
       <div className="demo-login"><strong>Demo credentials</strong><p>Caregiver: caregiver@aegis.demo</p><p>Senior: senior@aegis.demo</p><p>Password for both: <b>demo1234</b></p></div>
+      <p className="auth-switch">New to Aegis? <Link to="/signup">Create an account</Link></p>
     </main>
   </div>;
 }

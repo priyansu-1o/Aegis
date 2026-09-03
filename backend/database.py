@@ -59,6 +59,7 @@ if not _USE_SUPABASE:
         get_recent_transaction_timestamps,
         get_user_by_email,
         set_password_hash,
+        create_user,
         log_audit_event,
         get_audit_log,
     )
@@ -123,6 +124,19 @@ else:
 
     def set_password_hash(user_id, password_hash):
         _client().table("users").update({"password_hash": password_hash}).eq("user_id", user_id).execute()
+
+    def create_user(name, email, password_hash, role):
+        rows = _client().table("users").insert({
+            "name": name,
+            "email": email,
+            "password_hash": password_hash,
+            "role": role,
+            "caregiver_id": None,
+            "baseline_avg_tx": 0.0 if role == "caregiver" else 5000.0,
+        }).execute().data
+        if not rows:
+            raise RuntimeError("Could not create account")
+        return dict(rows[0])
 
     def get_all_users():
         rows = _client().table("users").select("*").order("user_id").execute().data

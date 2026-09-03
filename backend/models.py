@@ -490,6 +490,23 @@ def set_password_hash(user_id, password_hash):
     conn.close()
 
 
+def create_user(name, email, password_hash, role):
+    """Create an account and return its public user fields."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO users (name, email, password_hash, role, caregiver_id, baseline_avg_tx)
+        VALUES (?, ?, ?, ?, NULL, ?)
+        """,
+        (name, email, password_hash, role, 0.0 if role == "caregiver" else 5000.0),
+    )
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return get_user(user_id)
+
+
 # ── Audit log ───────────────────────────────────────────────────────────────
 
 def log_audit_event(

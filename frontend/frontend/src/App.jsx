@@ -23,6 +23,7 @@ import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
 import LoginPage from './components/ReferenceLoginPage';
+import SignupPage from './components/SignupPage';
 import LandingPage from './components/LandingPage';
 import PendingList from './components/caregiver/PendingList';
 import BalanceScreen from './components/senior/BalanceScreen';
@@ -226,6 +227,11 @@ function App() {
             ? <Navigate to={`/${currentUser.role}`} replace />
             : <LoginPage onLogin={handleLogin} />
         }
+      />
+
+      <Route
+        path="/signup"
+        element={currentUser ? <Navigate to={`/${currentUser.role}`} replace /> : <SignupPage onLogin={handleLogin} />}
       />
 
       {/* Caregiver — protected, role-gated */}

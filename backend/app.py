@@ -11,6 +11,7 @@ from database import (
     using_supabase,
     get_user,
     get_user_by_email,
+    create_user,
     get_all_users,
     get_risk_user_data,
     create_transaction,
@@ -172,6 +173,39 @@ def handle_disconnect():
 
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
+
+@app.route("/api/signup", methods=["POST"])
+def api_signup():
+    data = request.get_json() or {}
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    role = data.get("role")
+
+    if not name or not email or not password or not role:
+        return error("name, email, password and role are required", 400)
+    if role not in ("senior", "caregiver"):
+        return error("role must be 'senior' or 'caregiver'", 400)
+    if "@" not in email:
+        return error("Enter a valid email address", 400)
+    if len(password) < 8:
+        return error("Password must be at least 8 characters", 400)
+    if get_user_by_email(email):
+        return error("An account with this email already exists", 409)
+
+    try:
+        password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+        user = create_user(name, email, password_hash, role)
+    except Exception as exc:
+        return error(str(exc), 500)
+
+    token = generate_token(user)
+    response = jsonify({
+        "user": {"user_id": user["user_id"], "name": user["name"], "role": user["role"]}
+    })
+    set_auth_cookie(response, token)
+    return response, 201
+
 
 @app.route("/api/login", methods=["POST"])
 def api_login():
