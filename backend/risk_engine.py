@@ -1,9 +1,13 @@
 from datetime import datetime, timedelta
-
-RISK_THRESHOLD = 50
-
-FLAG_WORDS = ["rbi", "police", "cbi", "customs", "verification",
-              "safe account", "government", "digital arrest"]
+from config import (
+    RISK_THRESHOLD,
+    FLAG_WORDS,
+    WEIGHTS,
+    LARGE_AMOUNT_MULTIPLIER,
+    FD_BREAK_WINDOW_MINUTES,
+    VELOCITY_WINDOW_MINUTES,
+    VELOCITY_COUNT_THRESHOLD,
+)
 
 def is_new_payee(transaction, user):
     """Returns True if this payee has never been paid before."""
@@ -11,13 +15,17 @@ def is_new_payee(transaction, user):
 
 
 ##remember to change this later
-def is_large_amount(transaction, user, multiplier=10):
+def is_large_amount(transaction, user, multiplier=None):
     """Returns True if amount is far above the user's typical transaction size."""
+    if multiplier is None:
+        multiplier = LARGE_AMOUNT_MULTIPLIER
     avg = user.get("avg_transaction_amount", 5000)  # default if user has no history yet
     return transaction["amount"] > avg * multiplier
 
-def is_recent_fd_break(transaction, window_minutes=30):
+def is_recent_fd_break(transaction, window_minutes=None):
     """Returns True if an FD was broken within `window_minutes` before this transfer."""
+    if window_minutes is None:
+        window_minutes = FD_BREAK_WINDOW_MINUTES
     if not transaction.get("preceded_by_fd_break"):
         return False
 
@@ -30,6 +38,9 @@ def is_recent_fd_break(transaction, window_minutes=30):
             fd_break_time = datetime.fromisoformat(fd_break_time)
         except (ValueError, TypeError):
             return False
+
+    if fd_break_time.tzinfo is not None:
+        fd_break_time = fd_break_time.astimezone().replace(tzinfo=None)
 
     elapsed = datetime.now() - fd_break_time
     return elapsed <= timedelta(minutes=window_minutes)
@@ -53,9 +64,13 @@ def has_flag_words(transaction):
     note = (transaction.get("note") or "").lower()
     return any(word in note for word in FLAG_WORDS)
 
-def is_high_velocity(user, window_minutes=10, count_threshold=3):
+def is_high_velocity(user, window_minutes=None, count_threshold=None):
     """Returns True if the user has made several transactions in a short window —
     common when a scammer keeps a victim on the phone making repeated transfers."""
+    if window_minutes is None:
+        window_minutes = VELOCITY_WINDOW_MINUTES
+    if count_threshold is None:
+        count_threshold = VELOCITY_COUNT_THRESHOLD
     recent_timestamps = user.get("recent_transactions", [])
     now = datetime.now()
 
@@ -65,14 +80,6 @@ def is_high_velocity(user, window_minutes=10, count_threshold=3):
     )
     return recent_count >= count_threshold
 
-WEIGHTS = {
-    "new_payee": 30,
-    "large_amount": 25,
-    "recent_fd_break": 35,
-    "odd_hour": 15,
-    "flag_words": 40,
-    "high_velocity": 20,
-}
 
 
 def calculate_risk(transaction, user):
@@ -134,7 +141,7 @@ if __name__ == "__main__":
             "payee_account": "stranger", "amount": 3000, "note": "",
             "preceded_by_fd_break": False, "timestamp": now.replace(hour=23),
         },
-        "New payee + large amount (expect: borderline, 55)": {
+        "New payee + large amount (expect: held, 85)": {
             "payee_account": "stranger", "amount": 100000, "note": "",
             "preceded_by_fd_break": False, "timestamp": now.replace(hour=14),
         },

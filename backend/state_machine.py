@@ -1,127 +1,78 @@
 from datetime import datetime, timedelta
 
-from config import COOLING_OFF_SECONDS
-
-from models import (
-    get_transaction,
-    set_transaction_hold,
-    set_transaction_resolution
-)
+VALID_STATUSES = {"pending_caregiver_approval", "approved", "blocked"}
 
 
-VALID_STATUSES = {
-    "approved",
-    "pending_caregiver_approval",
-    "blocked"
-}
-
-
-def create_hold(tx_id):
-
-    expiry = (
-        datetime.now()
-        + timedelta(
-            seconds=COOLING_OFF_SECONDS
-        )
-    )
-
-    set_transaction_hold(
-        tx_id,
-        expiry.isoformat()
-    )
-
-    return get_transaction(tx_id)
-
-
-def check_expiry(transaction):
-
-    if transaction["status"] != \
-            "pending_caregiver_approval":
-
-        return transaction
-
-    expiry_string = \
-        transaction.get(
-            "cooling_off_expiry"
-        )
-
-    if not expiry_string:
-
-        return transaction
-
+def _parse_datetime(value):
+    if value is None or isinstance(value, datetime):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1]
     try:
-
-        expiry = datetime.fromisoformat(
-            expiry_string
-        )
-
+        return datetime.fromisoformat(text)
     except ValueError:
+        try:
+            return datetime.strptime(text, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return None
 
-        return transaction
 
-    if datetime.now() >= expiry:
+def create_hold(transaction, cooling_off_seconds):
+    """Puts a transaction into a pending hold with an expiry time."""
+    transaction["status"] = "pending_caregiver_approval"
+    transaction["cooling_off_expiry"] = datetime.now() + timedelta(seconds=cooling_off_seconds)
+    return transaction
 
-        set_transaction_resolution(
-            transaction["tx_id"],
-            "blocked",
-            "expired_no_response"
-        )
 
-        return get_transaction(
-            transaction["tx_id"]
-        )
+def resolve_hold(transaction, decision):
+    """Caregiver resolves a pending transaction. decision: 'approve' or 'block'."""
+    if transaction["status"] != "pending_caregiver_approval":
+        raise ValueError("Transaction is not pending approval")
+
+    if decision == "approve":
+        transaction["status"] = "approved"
+        transaction["resolution"] = "caregiver_approved"
+    elif decision == "block":
+        transaction["status"] = "blocked"
+        transaction["resolution"] = "caregiver_blocked"
+    else:
+        raise ValueError(f"Invalid decision: {decision}")
 
     return transaction
 
 
-def resolve_hold(
-    tx_id,
-    decision
-):
+def check_expiry(transaction):
+    """Fail-safe: if cooling-off window passed with no response, default to blocked."""
+    if transaction.get("status") != "pending_caregiver_approval":
+        return transaction
 
-    transaction = get_transaction(
-        tx_id
-    )
+    expiry = _parse_datetime(transaction.get("cooling_off_expiry"))
+    if expiry is None:
+        return transaction
 
-    if not transaction:
+    transaction["cooling_off_expiry"] = expiry
+    if datetime.now() >= expiry:
+        transaction["status"] = "blocked"
+        transaction["resolution"] = "expired_no_response"
 
-        raise ValueError(
-            "Transaction not found"
-        )
+    return transaction
 
-    # Check expiry FIRST
-    transaction = check_expiry(
-        transaction
-    )
 
-    if transaction["status"] != \
-            "pending_caregiver_approval":
+if __name__ == "__main__":
+    import time
 
-        raise ValueError(
-            "Transaction is no longer pending approval"
-        )
+    tx = {"id": "test1"}
+    tx = create_hold(tx, cooling_off_seconds=2)
+    print("After hold:", tx["status"])
 
-    if decision == "approve":
+    tx = resolve_hold(tx, "block")
+    print("After block:", tx["status"], tx["resolution"])
 
-        set_transaction_resolution(
-            tx_id,
-            "approved",
-            "caregiver_approved"
-        )
-
-    elif decision == "block":
-
-        set_transaction_resolution(
-            tx_id,
-            "blocked",
-            "caregiver_blocked"
-        )
-
-    else:
-
-        raise ValueError(
-            "Invalid decision. "
-            "Use 'approve' or 'block'."
-        )
-
-    return get_transaction(tx_id)
+    tx2 = {"id": "test2"}
+    tx2 = create_hold(tx2, cooling_off_seconds=1)
+    time.sleep(2)
+    tx2 = check_expiry(tx2)
+    print("After expiry:", tx2["status"], tx2["resolution"])

@@ -1,0 +1,25 @@
+# Python compiled files
+__pycache__/
+*.py[cod]
+*.pyo
+
+# SQLite database (auto-created by init_db on first run)
+*.db
+
+# Virtual environments
+.env
+.venv/
+venv/
+env/
+
+# dotenv secrets
+.env.local
+.env.*.local
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

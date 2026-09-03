@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import datetime, timedelta
 
-DB_NAME = "Aegis.db"
+DB_NAME = "kavach.db"
 
 
 def get_connection():
@@ -76,48 +76,30 @@ def init_db():
             cursor.execute("ALTER TABLE transactions ADD COLUMN cooling_off_expiry TIMESTAMP")
 
 
-    cursor.execute(
-        "SELECT COUNT(*) FROM users"
-    )
-
-    if cursor.fetchone()[0] == 0:
-
-        cursor.execute("""
+    demo_users = [
+        (1, "Priya (Caregiver)", "caregiver", None, 0.0),
+        (2, "Meena Sharma", "senior", 1, 2000.0),
+        (101, "Ramesh (Senior)", "senior", 201, 2000.0),
+        (201, "Priya (Caregiver)", "caregiver", None, 0.0),
+    ]
+    inserted = 0
+    for user in demo_users:
+        exists = cursor.execute(
+            "SELECT 1 FROM users WHERE user_id = ?",
+            (user[0],),
+        ).fetchone()
+        if exists:
+            continue
+        cursor.execute(
+            """
             INSERT INTO users
-            (
-                user_id,
-                name,
-                role,
-                caregiver_id,
-                baseline_avg_tx
-            )
+            (user_id, name, role, caregiver_id, baseline_avg_tx)
             VALUES (?, ?, ?, ?, ?)
-        """, (
-            101,
-            "Ramesh (Senior)",
-            "senior",
-            201,
-            2000.0
-        ))
-
-        cursor.execute("""
-            INSERT INTO users
-            (
-                user_id,
-                name,
-                role,
-                caregiver_id,
-                baseline_avg_tx
-            )
-            VALUES (?, ?, ?, ?, ?)
-        """, (
-            201,
-            "Priya (Caregiver)",
-            "caregiver",
-            None,
-            0.0
-        ))
-
+            """,
+            user,
+        )
+        inserted += 1
+    if inserted:
         print("Demo users inserted.")
 
     conn.commit()
@@ -206,9 +188,10 @@ def create_transaction(
             risk_reasons,
             status,
             resolution,
-            cooling_off_expiry
+            cooling_off_expiry,
+            created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         sender_id,
         payee_name,
@@ -219,7 +202,8 @@ def create_transaction(
         risk_reasons_str,
         status,
         resolution,
-        cooling_off_expiry
+        cooling_off_expiry,
+        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     ))
 
     tx_id = cursor.lastrowid
@@ -425,3 +409,30 @@ def get_recent_transaction_timestamps(
                 pass
 
     return timestamps
+
+
+def get_all_users():
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM users ORDER BY user_id"
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_transactions_by_sender(sender_id):
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT
+            t.*,
+            u.name AS sender_name
+        FROM transactions t
+        JOIN users u ON t.sender_id = u.user_id
+        WHERE t.sender_id = ?
+        ORDER BY t.created_at DESC
+        """,
+        (sender_id,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]

@@ -1,0 +1,208 @@
+/* ============================================
+   AEGIS — GLOBAL DESIGN SYSTEM
+   Senior Frontend
+   ============================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
+
+/* ---------- Design Tokens ---------- */
+:root {
+  /* Color — Forest Green System */
+  --color-forest-900: #0e2f26;
+  --color-forest-800: #143d31;
+  --color-forest-700: #1c5744;
+  --color-forest-600: #256b52;   /* primary brand / buttons */
+  --color-forest-500: #2f8264;
+  --color-emerald-accent: #3fa87e; /* sparing accent only */
+
+  /* Neutral / Surface */
+  --color-bg: #f7f5f1;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f0efe9;
+  --color-border: #e2e0d8;
+  --color-border-strong: #cfccc0;
+
+  /* Text */
+  --color-ink: #1f241f;
+  --color-ink-soft: #56604f;
+  --color-ink-faint: #8a9184;
+  --color-on-dark: #f4f6f2;
+  --color-on-dark-soft: #c3cdc2;
+
+  /* Semantic status (muted, not alarming) */
+  --color-status-safe-bg: #e9f3ec;
+  --color-status-safe-text: #1c5744;
+  --color-status-pending-bg: #fbf1de;
+  --color-status-pending-text: #8a5a1f;
+  --color-status-held-bg: #f5e9e6;
+  --color-status-held-text: #8a3f2f;
+
+  /* Typography */
+  --font-serif: 'Fraunces', Georgia, serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Type scale — senior app runs a notch larger than typical web defaults */
+  --text-xs: 0.875rem;   /* 14px */
+  --text-sm: 1rem;       /* 16px */
+  --text-base: 1.0625rem;/* 17px — base body */
+  --text-md: 1.25rem;    /* 20px */
+  --text-lg: 1.5rem;     /* 24px */
+  --text-xl: 1.875rem;   /* 30px */
+  --text-2xl: 2.25rem;   /* 36px */
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  /* Shadow — subtle only */
+  --shadow-sm: 0 1px 2px rgba(15, 40, 30, 0.06);
+  --shadow-md: 0 4px 16px rgba(15, 40, 30, 0.08);
+  --shadow-lg: 0 12px 32px rgba(15, 40, 30, 0.10);
+
+  /* Motion */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration: 180ms;
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  color: var(--color-ink);
+  background: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+img, svg { display: block; max-width: 100%; }
+
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+
+a { color: inherit; text-decoration: none; }
+
+/* ---------- Typography ---------- */
+h1, h2, h3, .font-serif {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--color-ink);
+  letter-spacing: -0.01em;
+}
+
+h1 { font-size: var(--text-2xl); }
+h2 { font-size: var(--text-xl); }
+h3 { font-size: var(--text-lg); }
+
+.text-soft { color: var(--color-ink-soft); }
+.text-faint { color: var(--color-ink-faint); }
+
+/* ---------- Layout ---------- */
+.container {
+  width: 100%;
+  max-width: 480px;   /* senior app is designed mobile-first, single column */
+  margin: 0 auto;
+  padding: 0 var(--space-5);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.stack-tight { gap: var(--space-2); }
+.stack-loose { gap: var(--space-6); }
+
+/* ---------- Card ---------- */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-flush {
+  background: var(--color-surface-alt);
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 56px;               /* large tap target for accessibility */
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background var(--duration) var(--ease), transform var(--duration) var(--ease);
+  width: 100%;
+}
+
+.btn:active { transform: scale(0.98); }
+
+.btn-primary {
+  background: var(--color-forest-600);
+  color: var(--color-on-dark);
+}
+.btn-primary:hover { background: var(--color-forest-700); }
+
+.btn-secondary {
+  background: var(--color-surface);
+  color: var(--color-forest-700);
+  border-color: var(--color-border-strong);
+}
+.btn-secondary:hover { background: var(--color-surface-alt); }
+
+.btn-text {
+  background: transparent;
+  color: var(--color-forest-700);
+  min-height: auto;
+  padding: var(--space-2) 0;
+  width: auto;
+}
+
+/* ---------- Status Pill ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.pill-safe { background: var(--color-status-safe-bg); color: var(--color-status-safe-text); }
+.pill-pending { background: var(--color-status-pending-bg); color: var(--color-status-pending-text); }
+.pill-held { background: var(--color-status-held-bg); color: var(--color-status-held-text); }
+
+/* ---------- Dark section (e.g. header/nav) ---------- */
+.surface-dark {
+  background: var(--color-forest-900);
+  color: var(--color-on-dark);
+}
+.surface-dark .text-soft { color: var(--color-on-dark-soft); }
