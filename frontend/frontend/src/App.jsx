@@ -22,12 +22,12 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
-import LoginPage from './components/ReferenceLoginPage';
+import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
 import LandingPage from './components/LandingPage';
 import PendingList from './components/caregiver/PendingList';
 import BalanceScreen from './components/senior/BalanceScreen';
-import ReferenceSeniorDashboard from './components/senior/ReferenceSeniorDashboard';
+
 import TransferForm from './components/senior/TransferForm';
 import FDBreakFlow from './components/senior/FDBreakFlow';
 import TransactionStatus from './components/senior/TransactionStatus';
@@ -209,7 +209,7 @@ function SeniorApp({ currentUser, onLogout }) {
   );
   if (screen === 'status') return <TransactionStatus transaction={currentTx} onDone={handleDone} onBalanceUpdate={handleBalanceUpdate} />;
 
-  return <ReferenceSeniorDashboard
+  return <BalanceScreen
     currentUser={currentUser}
     onLogout={onLogout}
     balance={balance}
