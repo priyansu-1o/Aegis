@@ -25,12 +25,26 @@ def is_recent_fd_break(transaction, window_minutes=30):
     if not fd_break_time:
         return False  # malformed data — don't crash, just don't flag
 
+    if isinstance(fd_break_time, str):
+        try:
+            fd_break_time = datetime.fromisoformat(fd_break_time)
+        except (ValueError, TypeError):
+            return False
+
     elapsed = datetime.now() - fd_break_time
     return elapsed <= timedelta(minutes=window_minutes)
 
 def is_odd_hour(transaction):
     """Returns True if the transaction happens outside normal waking hours."""
-    timestamp = transaction.get("timestamp", datetime.now())
+    timestamp = transaction.get("timestamp")
+    if not timestamp:
+        timestamp = datetime.now()
+    elif isinstance(timestamp, str):
+        try:
+            timestamp = datetime.fromisoformat(timestamp)
+        except (ValueError, TypeError):
+            timestamp = datetime.now()
+
     hour = timestamp.hour
     return hour < 6 or hour > 22
 
