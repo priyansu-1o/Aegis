@@ -32,9 +32,16 @@ function TransactionStatus({ transaction, onDone }) {
   // ── Countdown derived from cooling_off_expiry ────────────────────────────
   const computeSecondsLeft = () => {
     if (!coolingOffExpiry) return 180;
-    const expiry = new Date(coolingOffExpiry + 'Z'); // backend stores naive UTC — append Z
-    const diff = Math.floor((expiry - Date.now()) / 1000);
-    return Math.max(diff, 0);
+    // SQLite returns a naive UTC timestamp; Supabase returns one with a UTC
+    // offset.  Only add `Z` when the server did not already provide a zone.
+    const value = String(coolingOffExpiry);
+    const hasTimeZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
+    const expiryMs = Date.parse(hasTimeZone ? value : `${value}Z`);
+
+    // Never render NaN if a legacy row contains an invalid expiry value.
+    if (Number.isNaN(expiryMs)) return 180;
+
+    return Math.max(Math.floor((expiryMs - Date.now()) / 1000), 0);
   };
 
   const [secondsLeft, setSecondsLeft] = useState(computeSecondsLeft);
