@@ -49,12 +49,11 @@ CORS_ORIGINS = [origin.strip() for origin in os.getenv(
 CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
 
 # ── SocketIO ──────────────────────────────────────────────────────────────────
-# async_mode='threading' — works with the standard WSGI Flask dev server.
-# For production, swap for eventlet or gevent.
+# async_mode='gevent' in production (gunicorn), 'threading' for local dev server.
 socketio = SocketIO(
     app,
     cors_allowed_origins=CORS_ORIGINS,
-    async_mode="threading",
+    async_mode="gevent" if os.getenv("FLASK_ENV") == "production" else "threading",
     logger=False,
     engineio_logger=False,
 )
