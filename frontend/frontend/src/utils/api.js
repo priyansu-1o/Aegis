@@ -77,6 +77,10 @@ export async function getTransactionById(txId) {
   return _fetch(`/api/transactions/${txId}`);
 }
 
+export async function getTransactions() {
+  return _fetch('/api/transactions');
+}
+
 // ── Caregiver ─────────────────────────────────────────────────────────────────
 
 export async function fetchPendingTransactions() {

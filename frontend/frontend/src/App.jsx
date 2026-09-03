@@ -22,9 +22,11 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
-import LoginPage from './components/LoginPage';
+import LoginPage from './components/ReferenceLoginPage';
+import LandingPage from './components/LandingPage';
 import PendingList from './components/caregiver/PendingList';
 import BalanceScreen from './components/senior/BalanceScreen';
+import ReferenceSeniorDashboard from './components/senior/ReferenceSeniorDashboard';
 import TransferForm from './components/senior/TransferForm';
 import FDBreakFlow from './components/senior/FDBreakFlow';
 import TransactionStatus from './components/senior/TransactionStatus';
@@ -71,78 +73,15 @@ function ProtectedRoute({ currentUser, requiredRole, children }) {
 
 function CaregiverApp({ currentUser, onLogout }) {
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-bg)' }}>
-      {/* Header */}
-      <div className="surface-dark">
-        <div
-          className="container"
-          style={{
-            paddingTop: 'var(--space-6)',
-            paddingBottom: 'var(--space-6)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-          }}
-        >
-          <div>
-            <span
-              className="font-serif"
-              style={{ fontSize: 'var(--text-lg)', color: 'var(--color-on-dark)' }}
-            >
-              Aegis
-            </span>
-            <p
-              className="text-soft"
-              style={{ fontSize: 'var(--text-sm)', marginTop: 'var(--space-1)' }}
-            >
-              {currentUser?.name ?? 'Trusted Contact'}
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-            {/* Live indicator */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-              <span
-                style={{
-                  width: 8, height: 8, borderRadius: '50%',
-                  background: 'var(--color-status-safe-text)',
-                  boxShadow: '0 0 0 3px rgba(52,199,89,0.25)',
-                  animation: 'pulse 2s infinite', flexShrink: 0,
-                }}
-              />
-              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--color-on-dark-soft)', letterSpacing: '0.04em' }}>
-                Live
-              </span>
-            </div>
-
-            {/* Logout */}
-            <button
-              onClick={onLogout}
-              className="btn-text"
-              style={{ fontSize: 'var(--text-xs)', color: 'var(--color-on-dark-soft)' }}
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div
-        className="container stack-loose"
-        style={{ paddingTop: 'var(--space-6)', paddingBottom: 'var(--space-7)' }}
-      >
-        <div className="stack-tight">
-          <h1 className="font-serif" style={{ fontSize: 'var(--text-lg)' }}>
-            Pending Safety Checks
-          </h1>
-          <p className="text-soft" style={{ fontSize: 'var(--text-sm)' }}>
-            You're protecting Meena Sharma's account. Review any flagged activity below.
-          </p>
-        </div>
-
+    <div className="ref-skin">
+      <header className="ref-header"><div className="ref-header-inner"><div className="ref-brand"><span className="brand-mark">♜</span> AEGIS</div><div style={{display:'flex',alignItems:'center',gap:10}}><span className="user-pill">Caregiver · {currentUser?.name}</span><button onClick={onLogout} className="utility-button">↗ Sign out</button></div></div></header>
+      <main className="app-wrap">
+        <div className="partner-banner"><div className="partner-info"><div className="partner-icon" style={{background:'rgba(200,168,93,.15)',color:'var(--gold-dark)'}}>🛡</div><div><div className="partner-title">Protecting Sender: Meena Sharma</div><div className="partner-sub">You receive approval requests for held transactions.</div></div></div></div>
+        <div className="ref-page-heading"><div><h1>CAREGIVER PROTECTION CENTER</h1><p>Review transactions Aegis has temporarily held.</p></div><span className="demo-badge">Demo / Simulated Account Data</span></div>
+        <div className="stat-grid"><div className="stat-card"><div className="stat-label">Pending Reviews</div><div className="stat-value" style={{color:'var(--gold-dark)'}}>Live</div></div><div className="stat-card"><div className="stat-label">Protected Today</div><div className="stat-value" style={{color:'var(--forest)'}}>Active</div></div><div className="stat-card"><div className="stat-label">High Risk</div><div className="stat-value" style={{color:'var(--danger)'}}>Alerts</div></div></div>
+        <div className="urgent-banner">⚠ <span>Transactions needing your review appear below.</span></div>
         <PendingList />
-      </div>
+      </main>
     </div>
   );
 }
@@ -227,25 +166,12 @@ function SeniorApp({ currentUser, onLogout }) {
   if (screen === 'fdbreak')  return <FDBreakFlow  onBack={handleBack} onSubmit={handleFDSubmit}      apiError={apiError} />;
   if (screen === 'status')   return <TransactionStatus transaction={currentTx} onDone={handleDone} />;
 
-  return (
-    <div style={{ position: 'relative' }}>
-      <button
-        onClick={onLogout}
-        className="btn-text"
-        style={{
-          position: 'absolute', top: 'var(--space-5)', right: 'var(--space-4)',
-          fontSize: 'var(--text-xs)', color: 'var(--color-on-dark-soft)',
-          zIndex: 10,
-        }}
-      >
-        Sign out
-      </button>
-      <BalanceScreen
-        onTransfer={() => { setApiError(null); setScreen('transfer'); }}
-        onBreakFD={()  => { setApiError(null); setScreen('fdbreak'); }}
-      />
-    </div>
-  );
+  return <ReferenceSeniorDashboard
+    currentUser={currentUser}
+    onLogout={onLogout}
+    onTransfer={() => { setApiError(null); setScreen('transfer'); }}
+    onBreakFD={() => { setApiError(null); setScreen('fdbreak'); }}
+  />;
 }
 
 // =============================================================================
@@ -286,7 +212,7 @@ function App() {
 
   // Smart root redirect — sends authenticated users straight to their view
   const RootRedirect = () => {
-    if (!currentUser) return <Navigate to="/login" replace />;
+    if (!currentUser) return <LandingPage />;
     return <Navigate to={`/${currentUser.role}`} replace />;
   };
 
