@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { getTransactions } from '../../utils/api';
 
 /**
  * TransferForm — updated with:
@@ -14,11 +15,26 @@ function TransferForm({ onBack, onSubmit, apiError, balance = 0 }) {
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // A payee is "new" if they've never been paid before.
-  // We leave this as a UI hint only — backend risk engine is the real arbiter.
-  // We can't know locally without fetching prior transactions, so we only
-  // show the pill when account looks new (non-empty and not a prior session).
-  const isNewBeneficiary = Boolean(payeeAccount);
+  // Fetch the senior's past approved payee accounts once on mount so we can
+  // show the "New Beneficiary" badge accurately instead of on every entry.
+  const [knownAccounts, setKnownAccounts] = useState(null); // null = loading
+
+  useEffect(() => {
+    getTransactions()
+      .then((data) => {
+        const approved = (data.transactions || [])
+          .filter((tx) => tx.status === 'APPROVED')
+          .map((tx) => tx.payee_account);
+        setKnownAccounts(new Set(approved));
+      })
+      .catch(() => setKnownAccounts(new Set())); // graceful fallback
+  }, []);
+
+  // True when the typed account number hasn't been seen in approved history.
+  // While history is loading (null) we conservatively assume it IS new.
+  const isNewBeneficiary = payeeAccount
+    ? knownAccounts === null || !knownAccounts.has(payeeAccount)
+    : false;
 
   const formatINR = (value) => {
     const num = Number(String(value).replace(/[^0-9]/g, ''));

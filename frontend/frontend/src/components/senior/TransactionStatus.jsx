@@ -11,7 +11,7 @@ import { useSocket } from '../../utils/useSocket';
  *              approves or blocks, or when the cooling-off timer expires.
  *   FALLBACK — 5-second polling (reduced from 2 s; socket covers the fast path).
  */
-function TransactionStatus({ transaction, onDone }) {
+function TransactionStatus({ transaction, onDone, onBalanceUpdate }) {
   // Guard: if no transaction data at all, show a neutral error card
   if (!transaction) {
     return (
@@ -83,12 +83,19 @@ function TransactionStatus({ transaction, onDone }) {
     const handleTxUpdate = (data) => {
       if (data.tx_id !== txId) return;
       const next = normaliseStatus(data.status);
-      if (next !== 'pending_verification') setStatus(next);
+      if (next !== 'pending_verification') {
+        setStatus(next);
+        // Notify parent so it can correctly update the balance
+        if (onBalanceUpdate) {
+          const decision = next === 'approved' ? 'approved' : 'blocked';
+          onBalanceUpdate(decision, amount);
+        }
+      }
     };
 
     socket.on('tx_update', handleTxUpdate);
     return () => socket.off('tx_update', handleTxUpdate);
-  }, [socket, status, txId]);
+  }, [socket, status, txId, amount, onBalanceUpdate]);
 
   // ── Poll backend every 5 s as fallback ───────────────────────────────────
   const pollOnce = useCallback(async () => {
@@ -96,17 +103,32 @@ function TransactionStatus({ transaction, onDone }) {
     try {
       const data = await getTransactionById(txId);
       const latestStatus = normaliseStatus(data.transaction.status);
-      if (latestStatus !== 'pending_verification') setStatus(latestStatus);
+      if (latestStatus !== 'pending_verification') {
+        setStatus(latestStatus);
+        // Notify parent so it can correctly update the balance
+        if (onBalanceUpdate) {
+          const decision = latestStatus === 'approved' ? 'approved' : 'blocked';
+          onBalanceUpdate(decision, amount);
+        }
+      }
     } catch {
       // Network hiccup — keep trying
     }
-  }, [status, txId]);
+  }, [status, txId, amount, onBalanceUpdate]);
 
   useEffect(() => {
     if (status !== 'pending_verification' || !txId) return;
     const poll = setInterval(pollOnce, 5000);
     return () => clearInterval(poll);
   }, [pollOnce, status, txId]);
+
+  // ── Countdown expiry → notify parent ─────────────────────────────────────
+  useEffect(() => {
+    if (status === 'expired' && onBalanceUpdate) {
+      onBalanceUpdate('expired', amount);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   const formatINR = (n) => '₹' + n.toLocaleString('en-IN');
 

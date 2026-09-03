@@ -108,6 +108,19 @@ function SeniorApp({ currentUser, onLogout }) {
     setScreen('balance');
   };
 
+  /**
+   * Called by TransactionStatus once the caregiver resolves a held tx.
+   * decision: 'approved' | 'blocked' | 'expired'
+   * amount: the original transaction amount
+   */
+  const handleBalanceUpdate = (decision, amount) => {
+    if (decision === 'approved') {
+      // Money actually leaves the account only when the caregiver approves
+      setBalance((prev) => Math.max(0, prev - amount));
+    }
+    // blocked / expired → no money moved, balance unchanged
+  };
+
   const handleTransferSubmit = async (formData) => {
     setApiError(null);
     try {
@@ -121,10 +134,11 @@ function SeniorApp({ currentUser, onLogout }) {
       const tx = result.transaction;
       saveTxId(tx.tx_id);
 
-      // Deduct from balance immediately — if the transfer is later blocked
-      // by the caregiver the senior would need to be refunded, but for the
-      // demo we deduct on submission so the balance reflects the intent.
-      setBalance((prev) => Math.max(0, prev - tx.amount));
+      // Only deduct balance immediately for auto-approved transactions.
+      // Held transactions wait for caregiver approval before any money moves.
+      if (tx.status === 'APPROVED') {
+        setBalance((prev) => Math.max(0, prev - tx.amount));
+      }
 
       setCurrentTx({
         txId:             tx.tx_id,
@@ -155,7 +169,12 @@ function SeniorApp({ currentUser, onLogout }) {
 
       const tx = result.transaction;
       saveTxId(tx.tx_id);
-      setBalance((prev) => Math.max(0, prev - tx.amount));
+
+      // Only deduct balance immediately for auto-approved transactions.
+      // Held FD-break transactions wait for caregiver approval.
+      if (tx.status === 'APPROVED') {
+        setBalance((prev) => Math.max(0, prev - tx.amount));
+      }
 
       setCurrentTx({
         txId:             tx.tx_id,
@@ -188,7 +207,7 @@ function SeniorApp({ currentUser, onLogout }) {
       balance={balance}
     />
   );
-  if (screen === 'status') return <TransactionStatus transaction={currentTx} onDone={handleDone} />;
+  if (screen === 'status') return <TransactionStatus transaction={currentTx} onDone={handleDone} onBalanceUpdate={handleBalanceUpdate} />;
 
   return <ReferenceSeniorDashboard
     currentUser={currentUser}

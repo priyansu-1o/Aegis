@@ -18,8 +18,15 @@ SUPABASE_KEY = (
     or os.getenv("SUPABASE_ANON_KEY", "").strip()
 )
 
-# ── Risk engine ──────────────────────────────────────────────────────────────
-RISK_THRESHOLD = 50          # score >= this → hold for caregiver approval
+# ── Risk engine ───────────────────────────────────────────────────────────────
+RISK_THRESHOLD = 55          # score >= this → hold for caregiver approval
+                             # Key combos at threshold=55:
+                             #   new_payee(30) + odd_hour(15)        = 45 → auto-approve (harmless test transfer)
+                             #   new_payee(30) + velocity(20)        = 50 → auto-approve (rapid but not scam alone)
+                             #   new_payee(30) + flag_words(40)      = 70 → HOLD (scam keyword)
+                             #   new_payee(30) + fd_break(35)        = 65 → HOLD (FD break pattern)
+                             #   flag_words(40) + odd_hour(15)       = 55 → HOLD (suspicious note at odd hour)
+                             #   new_payee(30) + odd_hour(15) + vel(20) = 65 → HOLD (3 signals at once)
 
 FLAG_WORDS = [
     "rbi", "police", "cbi", "customs", "verification",
@@ -27,16 +34,19 @@ FLAG_WORDS = [
 ]
 
 WEIGHTS = {
-    "new_payee":      30,
-    "large_amount":   55,   # raised: large transfers are always suspicious regardless of payee
+    "new_payee":       30,
+    "large_amount":    55,   # large transfers alone always suspicious regardless of payee
     "recent_fd_break": 35,
-    "odd_hour":       15,
-    "flag_words":     40,
-    "high_velocity":  20,
+    "odd_hour":        15,
+    "flag_words":      40,
+    "high_velocity":   20,
 }
 
 # is_large_amount: flag if amount > avg * LARGE_AMOUNT_MULTIPLIER
-LARGE_AMOUNT_MULTIPLIER = 2
+# 3x gives established users room for legitimate above-average transfers to known payees.
+# A known payee receiving 2.5x the average is unusual but not necessarily a scam.
+# Combined with new_payee(30) it still fires early enough to catch real large scam transfers.
+LARGE_AMOUNT_MULTIPLIER = 3
 
 # is_recent_fd_break: FD break within this window is suspicious
 FD_BREAK_WINDOW_MINUTES = 30
