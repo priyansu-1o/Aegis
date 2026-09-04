@@ -1,15 +1,15 @@
-# Kavach — Elder Escrow & Anomaly Engine
+# Aegis — Elder Escrow & Anomaly Engine
 
 A senior-guardian escrow layer that intercepts high-risk bank transactions and routes them through caregiver approval + a cooling-off period, built to counter "digital arrest" scam fund transfers.
 
-Full PRD: see `docs/kavach_prd_readme.md`
-Pitch script: see `docs/kavach_pitch_script.md`
+Full PRD: see `docs/Aegis_prd_readme.md`
+Pitch script: see `docs/Aegis_pitch_script.md`
 
 ---
 
 ## Project Structure
 ```
-kavach/
+Aegis/
 ├── backend/              # Flask API — risk engine + escrow state machine
 ├── frontend-senior/      # React app — Senior device view
 ├── frontend-caregiver/   # React app — Caregiver device view
