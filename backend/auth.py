@@ -136,14 +136,22 @@ def require_role(*allowed_roles):
     return decorator
 
 
+# Read from env — production needs Secure=True, SameSite=None for cross-domain cookies
+_COOKIE_SECURE   = os.getenv("COOKIE_SECURE",   "false").strip().lower() == "true"
+_COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "Lax").strip()
+
+
 def set_auth_cookie(response, token: str):
-    """Attach the JWT as an httpOnly, SameSite=Lax cookie."""
+    """Attach the JWT as an httpOnly cookie.
+    Local:      Secure=False, SameSite=Lax  (same-origin).
+    Production: set COOKIE_SECURE=true, COOKIE_SAMESITE=None via Render env vars.
+    """
     response.set_cookie(
         COOKIE_NAME,
         token,
         httponly=True,
-        samesite="Lax",
-        secure=False,   # set True in production (HTTPS)
+        samesite=_COOKIE_SAMESITE,
+        secure=_COOKIE_SECURE,
         max_age=TOKEN_LIFETIME_HOURS * 3600,
         path="/",
     )
@@ -156,8 +164,8 @@ def clear_auth_cookie(response):
         COOKIE_NAME,
         "",
         httponly=True,
-        samesite="Lax",
-        secure=False,
+        samesite=_COOKIE_SAMESITE,
+        secure=_COOKIE_SECURE,
         max_age=0,
         path="/",
     )
