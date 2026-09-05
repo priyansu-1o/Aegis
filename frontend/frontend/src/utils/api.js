@@ -77,10 +77,10 @@ export async function getTransactionById(txId) {
   return _fetch(`/api/transactions/${txId}`);
 }
 
-export async function signup({ name, email, password, role }) {
+export async function signup({ name, email, password, role, link_code }) {
   return _fetch('/api/signup', {
     method: 'POST',
-    body: JSON.stringify({ name, email, password, role }),
+    body: JSON.stringify({ name, email, password, role, link_code }),
   });
 }
 

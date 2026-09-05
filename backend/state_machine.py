@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 VALID_STATUSES = {"pending_caregiver_approval", "approved", "blocked"}
 
@@ -23,7 +23,7 @@ def _parse_datetime(value):
 def create_hold(transaction, cooling_off_seconds):
     """Puts a transaction into a pending hold with an expiry time."""
     transaction["status"] = "pending_caregiver_approval"
-    transaction["cooling_off_expiry"] = datetime.now() + timedelta(seconds=cooling_off_seconds)
+    transaction["cooling_off_expiry"] = datetime.now(timezone.utc) + timedelta(seconds=cooling_off_seconds)
     return transaction
 
 

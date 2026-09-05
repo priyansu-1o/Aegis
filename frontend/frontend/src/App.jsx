@@ -73,17 +73,29 @@ function ProtectedRoute({ currentUser, requiredRole, children }) {
 // =============================================================================
 
 function CaregiverApp({ currentUser, onLogout }) {
+  useEffect(() => {
+    document.body.classList.add('dashboard-active');
+    return () => document.body.classList.remove('dashboard-active');
+  }, []);
+
   return (
-    <div className="ref-skin">
-      <header className="ref-header"><div className="ref-header-inner"><div className="ref-brand"><span className="brand-mark">♜</span> AEGIS</div><div style={{display:'flex',alignItems:'center',gap:10}}><span className="user-pill">Caregiver · {currentUser?.name}</span><button onClick={onLogout} className="utility-button">↗ Sign out</button></div></div></header>
+    <>
+      <header className="dashboard-header">
+        <div className="header-inner">
+          <a href="/" className="brand-logo">
+            <img src="/logo.svg" alt="Aegis Logo" />
+            AEGIS
+          </a>
+          <div className="nav-user">
+            <span className="user-pill caregiver">Caregiver · {currentUser?.name}</span>
+            <button onClick={onLogout} style={{color:'var(--secondary-text)', fontSize:'0.82rem', fontWeight:600, border:'none', background:'none', cursor:'pointer'}}>Logout</button>
+          </div>
+        </div>
+      </header>
       <main className="app-wrap">
-        <div className="partner-banner"><div className="partner-info"><div className="partner-icon" style={{background:'rgba(200,168,93,.15)',color:'var(--gold-dark)'}}>🛡</div><div><div className="partner-title">Caregiver Protection Active</div><div className="partner-sub">You receive approval requests for held transactions.</div></div></div></div>
-        <div className="ref-page-heading"><div><h1>CAREGIVER PROTECTION CENTER</h1><p>Review transactions Aegis has temporarily held.</p></div><span className="demo-badge">Demo / Simulated Account Data</span></div>
-        <div className="stat-grid"><div className="stat-card"><div className="stat-label">Pending Reviews</div><div className="stat-value" style={{color:'var(--gold-dark)'}}>Live</div></div><div className="stat-card"><div className="stat-label">Protected Today</div><div className="stat-value" style={{color:'var(--forest)'}}>Active</div></div><div className="stat-card"><div className="stat-label">High Risk</div><div className="stat-value" style={{color:'var(--danger)'}}>Alerts</div></div></div>
-        <div className="urgent-banner">⚠ <span>Transactions needing your review appear below.</span></div>
-        <PendingList />
+        <PendingList caregiverName={currentUser?.name} />
       </main>
-    </div>
+    </>
   );
 }
 
@@ -93,129 +105,28 @@ function CaregiverApp({ currentUser, onLogout }) {
 // =============================================================================
 
 function SeniorApp({ currentUser, onLogout }) {
-  const [screen, setScreen]       = useState('balance');
-  const [currentTx, setCurrentTx] = useState(null);
-  const [apiError, setApiError]   = useState(null);
-  // Balance lives here so it can be deducted after a successful transfer
-  const [balance, setBalance]     = useState(845000);
+  useEffect(() => {
+    document.body.classList.add('dashboard-active');
+    return () => document.body.classList.remove('dashboard-active');
+  }, []);
 
-  const handleBack = () => { setApiError(null); setScreen('balance'); };
-
-  const handleDone = () => {
-    clearTransaction();
-    setCurrentTx(null);
-    setApiError(null);
-    setScreen('balance');
-  };
-
-  /**
-   * Called by TransactionStatus once the caregiver resolves a held tx.
-   * decision: 'approved' | 'blocked' | 'expired'
-   * amount: the original transaction amount
-   */
-  const handleBalanceUpdate = (decision, amount) => {
-    if (decision === 'approved') {
-      // Money actually leaves the account only when the caregiver approves
-      setBalance((prev) => Math.max(0, prev - amount));
-    }
-    // blocked / expired → no money moved, balance unchanged
-  };
-
-  const handleTransferSubmit = async (formData) => {
-    setApiError(null);
-    try {
-      const result = await submitTransfer({
-        payee_name:    formData.payeeName,
-        payee_account: formData.payeeAccount,
-        amount:        formData.amount,
-        note:          formData.note || '',
-      });
-
-      const tx = result.transaction;
-      saveTxId(tx.tx_id);
-
-      // Only deduct balance immediately for auto-approved transactions.
-      // Held transactions wait for caregiver approval before any money moves.
-      if (tx.status === 'APPROVED') {
-        setBalance((prev) => Math.max(0, prev - tx.amount));
-      }
-
-      setCurrentTx({
-        txId:             tx.tx_id,
-        amount:           tx.amount,
-        beneficiary:      tx.payee_name,
-        riskReasons:      tx.risk_reasons,
-        status:           tx.status,
-        coolingOffExpiry: tx.cooling_off_expiry,
-        transactionType:  'transfer',
-      });
-      setScreen('status');
-    } catch (err) {
-      setApiError(err.message);
-    }
-  };
-
-  const handleFDSubmit = async (formData) => {
-    setApiError(null);
-    try {
-      const result = await submitTransfer({
-        payee_name:            'Savings Account',
-        payee_account:         '0000004821',
-        amount:                formData.amount,
-        note:                  'FD break — proceeds to savings',
-        preceded_by_fd_break:  true,
-        fd_break_timestamp:    new Date().toISOString(),
-      });
-
-      const tx = result.transaction;
-      saveTxId(tx.tx_id);
-
-      // Only deduct balance immediately for auto-approved transactions.
-      // Held FD-break transactions wait for caregiver approval.
-      if (tx.status === 'APPROVED') {
-        setBalance((prev) => Math.max(0, prev - tx.amount));
-      }
-
-      setCurrentTx({
-        txId:             tx.tx_id,
-        amount:           tx.amount,
-        beneficiary:      'Savings Account · ····4821',
-        riskReasons:      tx.risk_reasons,
-        status:           tx.status,
-        coolingOffExpiry: tx.cooling_off_expiry,
-        transactionType:  'fd_break',
-      });
-      setScreen('status');
-    } catch (err) {
-      setApiError(err.message);
-    }
-  };
-
-  if (screen === 'transfer') return (
-    <TransferForm
-      onBack={handleBack}
-      onSubmit={handleTransferSubmit}
-      apiError={apiError}
-      balance={balance}
-    />
+  return (
+    <>
+      <header className="dashboard-header">
+        <div className="header-inner">
+          <a href="/" className="brand-logo">
+            <img src="/logo.svg" alt="Aegis Logo" />
+            AEGIS
+          </a>
+          <div className="nav-user">
+            <span className="user-pill">{currentUser?.name} · ID #{currentUser?.user_id}</span>
+            <button onClick={onLogout} style={{color:'var(--secondary-text)', fontSize:'0.82rem', fontWeight:600, border:'none', background:'none', cursor:'pointer'}}>Logout</button>
+          </div>
+        </div>
+      </header>
+      <BalanceScreen currentUser={currentUser} />
+    </>
   );
-  if (screen === 'fdbreak') return (
-    <FDBreakFlow
-      onBack={handleBack}
-      onSubmit={handleFDSubmit}
-      apiError={apiError}
-      balance={balance}
-    />
-  );
-  if (screen === 'status') return <TransactionStatus transaction={currentTx} onDone={handleDone} onBalanceUpdate={handleBalanceUpdate} />;
-
-  return <BalanceScreen
-    currentUser={currentUser}
-    onLogout={onLogout}
-    balance={balance}
-    onTransfer={() => { setApiError(null); setScreen('transfer'); }}
-    onBreakFD={() => { setApiError(null); setScreen('fdbreak'); }}
-  />;
 }
 function LoadingScreen() {
   return (

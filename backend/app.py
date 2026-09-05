@@ -24,6 +24,7 @@ from database import (
     log_audit_event,
     get_audit_log,
     link_caregiver_to_senior,
+    update_user_balance,
 )
 from risk_engine import evaluate_transaction
 from state_machine import create_hold, check_expiry, resolve_hold
@@ -287,6 +288,7 @@ def api_me():
             "name":    user["name"],
             "role":    user["role"],
             "email":   user.get("email"),
+            "balance": user.get("balance", 0),
         }
     }), 200
 
@@ -350,6 +352,10 @@ def api_transfer():
         if risk["action"] == "hold_for_approval":
             status, resolution = "pending_caregiver_approval", None
         else:
+            # Check balance if auto-approving
+            current_balance = user.get("balance", 0)
+            if amount > current_balance:
+                return error("Insufficient balance", 400)
             status, resolution = "approved", "auto_approved"
 
         tx_id = create_transaction(
@@ -395,6 +401,9 @@ def api_transfer():
                 actor_id=None, actor_role="system",
                 risk_score=risk["score"],
             )
+            # Deduct balance
+            update_user_balance(sender_id, amount)
+
             # Notify the senior so their status screen updates immediately
             socketio.emit(
                 "tx_update",
@@ -434,15 +443,27 @@ def api_get_transaction(tx_id):
 
 @app.route("/api/transactions", methods=["GET"])
 @require_auth
-@require_role("senior")
 def api_list_transactions():
     try:
-        sender_id = g.current_user["user_id"]
-        rows = [apply_expiry(tx) for tx in get_transactions_by_sender(sender_id)]
-        return jsonify({
-            "sender_id":    sender_id,
-            "transactions": [public_transaction(tx) for tx in rows],
-        }), 200
+        user = g.current_user
+        if user["role"] == "senior":
+            sender_id = user["user_id"]
+            rows = [apply_expiry(tx) for tx in get_transactions_by_sender(sender_id)]
+            return jsonify({
+                "sender_id":    sender_id,
+                "transactions": [public_transaction(tx) for tx in rows],
+            }), 200
+        elif user["role"] == "caregiver":
+            all_users = get_all_users()
+            seniors = [u for u in all_users if u.get("caregiver_id") == user["user_id"]]
+            all_tx = []
+            for s in seniors:
+                txs = [apply_expiry(tx) for tx in get_transactions_by_sender(s["user_id"])]
+                all_tx.extend(txs)
+            all_tx.sort(key=lambda x: x["created_at"] or "", reverse=True)
+            return jsonify({
+                "transactions": [public_transaction(tx) for tx in all_tx],
+            }), 200
     except Exception as exc:
         return error(str(exc), 500)
 
@@ -497,6 +518,12 @@ def api_resolve(tx_id):
         updated = resolve_hold(transaction, decision)
         set_transaction_resolution(tx_id, updated["status"], updated.get("resolution"))
         stored = get_transaction(tx_id)
+
+        if decision == "approve":
+            current_balance = sender.get("balance", 0)
+            if transaction["amount"] > current_balance:
+                return error("Insufficient balance", 400)
+            update_user_balance(transaction["sender_id"], transaction["amount"])
 
         # ── Audit: caregiver decision ─────────────────────────────────────────
         event_name = "caregiver_approved" if decision == "approve" else "caregiver_blocked"

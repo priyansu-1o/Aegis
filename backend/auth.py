@@ -51,7 +51,7 @@ def generate_token(user: dict) -> str:
     now = datetime.now(tz=timezone.utc)
     payload = {
         "sub":   str(user["user_id"]),   # PyJWT 2.13+ requires sub to be a string
-        "email": user["email"],
+        "email": user.get("email"),
         "role":  user["role"],
         "iat":   now,
         "exp":   now + timedelta(hours=TOKEN_LIFETIME_HOURS),
@@ -104,7 +104,7 @@ def require_auth(f):
 
         g.current_user = {
             "user_id": int(payload["sub"]),  # sub is stored as str; cast back to int
-            "email":   payload["email"],
+            "email":   payload.get("email"),
             "role":    payload["role"],
         }
         return f(*args, **kwargs)

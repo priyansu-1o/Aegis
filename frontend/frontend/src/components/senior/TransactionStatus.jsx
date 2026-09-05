@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getStatusConfig, normaliseStatus } from '../../statusConfig';
 import { getTransactionById } from '../../utils/api';
 import { useSocket } from '../../utils/useSocket';
@@ -64,13 +64,34 @@ function TransactionStatus({ transaction, onDone, onBalanceUpdate }) {
   };
 
   const [secondsLeft, setSecondsLeft] = useState(computeSecondsLeft);
+  const expiryHandledRef = useRef(false);
 
   // Countdown tick — only while pending
   useEffect(() => {
     if (status !== 'pending_verification') return;
     if (secondsLeft <= 0) {
-      setStatus('expired');
-      return;
+      if (expiryHandledRef.current || !txId) return;
+      expiryHandledRef.current = true;
+
+      // Reading the transaction makes the backend apply its fail-safe expiry
+      // transition, persist BLOCKED, and notify the senior over Socket.IO.
+      let cancelled = false;
+      getTransactionById(txId)
+        .then((data) => {
+          if (cancelled) return;
+          const next = normaliseStatus(data.transaction.status);
+          setStatus(next);
+          if (onBalanceUpdate && next !== 'pending_verification') {
+            onBalanceUpdate(next === 'approved' ? 'approved' : 'blocked', amount);
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setStatus('expired');
+          onBalanceUpdate?.('expired', amount);
+        });
+
+      return () => { cancelled = true; };
     }
     const timer = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
     return () => clearTimeout(timer);

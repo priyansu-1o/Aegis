@@ -29,7 +29,8 @@ def init_db():
             name TEXT NOT NULL,
             role TEXT NOT NULL,
             caregiver_id INTEGER,
-            baseline_avg_tx REAL DEFAULT 5000.0
+            baseline_avg_tx REAL DEFAULT 5000.0,
+            balance REAL DEFAULT 845000.0
         )
     """)
 
@@ -98,6 +99,8 @@ def init_db():
             cursor.execute("ALTER TABLE users ADD COLUMN email TEXT")
         if "password_hash" not in user_cols:
             cursor.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+        if "balance" not in user_cols:
+            cursor.execute("ALTER TABLE users ADD COLUMN balance REAL DEFAULT 845000.0")
 
 
     demo_users = [
@@ -496,10 +499,10 @@ def create_user(name, email, password_hash, role):
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO users (name, email, password_hash, role, caregiver_id, baseline_avg_tx)
-        VALUES (?, ?, ?, ?, NULL, ?)
+        INSERT INTO users (name, email, password_hash, role, caregiver_id, baseline_avg_tx, balance)
+        VALUES (?, ?, ?, ?, NULL, ?, ?)
         """,
-        (name, email, password_hash, role, 0.0 if role == "caregiver" else 5000.0),
+        (name, email, password_hash, role, 0.0 if role == "caregiver" else 5000.0, 0.0 if role == "caregiver" else 845000.0),
     )
     user_id = cursor.lastrowid
     conn.commit()
@@ -513,6 +516,17 @@ def link_caregiver_to_senior(senior_id: int, caregiver_id: int) -> None:
     conn.execute(
         "UPDATE users SET caregiver_id = ? WHERE user_id = ? AND role = 'senior'",
         (caregiver_id, senior_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_user_balance(user_id: int, amount_to_deduct: float) -> None:
+    """Deduct amount from the user's balance. Can be negative to add funds."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE users SET balance = MAX(0, balance - ?) WHERE user_id = ?",
+        (amount_to_deduct, user_id),
     )
     conn.commit()
     conn.close()
