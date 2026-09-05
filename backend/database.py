@@ -1,74 +1,34 @@
 """
-database.py — Storage abstraction layer
-=======================================
-Uses Supabase when SUPABASE_URL and SUPABASE_KEY are both set in the
-environment (or a .env file).  Falls back to the SQLite implementation
-in models.py when those variables are absent — so local development works
-without any cloud credentials.
-
-The public API exposed by this module is identical regardless of which
-backend is active, so the rest of the application never needs to branch.
+database.py — Supabase storage layer
+====================================
+All application data is stored directly in Supabase.
 """
-
-import os
 
 from config import SUPABASE_URL, SUPABASE_KEY
 
-# ── Backend selection ─────────────────────────────────────────────────────────
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError(
+        "SUPABASE_URL and SUPABASE_KEY are required. "
+        "AEGIS no longer supports local SQLite storage."
+    )
 
-_USE_SUPABASE = bool(SUPABASE_URL and SUPABASE_KEY)
+try:
+    from supabase import create_client as _create_client
+except ImportError as exc:
+    raise RuntimeError(
+        "The supabase package is required. Install backend/requirements.txt."
+    ) from exc
 
-if _USE_SUPABASE:
-    try:
-        from supabase import create_client as _create_client
-        _HAS_SUPABASE_PKG = True
-    except ImportError:
-        _HAS_SUPABASE_PKG = False
-        _USE_SUPABASE = False
-        print(
-            "[database] WARNING: SUPABASE_URL/KEY are set but the 'supabase' "
-            "package is not installed. Falling back to SQLite."
-        )
-else:
-    _HAS_SUPABASE_PKG = False
+_USE_SUPABASE = True
 
 
 def using_supabase() -> bool:
-    """Returns True only when a live Supabase connection is being used."""
-    return _USE_SUPABASE
+    """Returns True because Supabase is the only supported storage backend."""
+    return True
 
+# ── Supabase implementation ──────────────────────────────────────────────────
 
-# ── SQLite fallback (models.py re-exported) ───────────────────────────────────
-
-if not _USE_SUPABASE:
-    # Re-export every public function from the SQLite implementation so that
-    # app.py keeps a single clean import surface: `from database import ...`
-    from models import (
-        init_db,
-        get_user,
-        get_all_users,
-        get_risk_user_data,
-        create_transaction,
-        get_transaction,
-        get_pending_transactions_for_caregiver,
-        get_transactions_by_sender,
-        update_transaction_status,
-        set_transaction_hold,
-        set_transaction_resolution,
-        get_known_payees,
-        get_recent_transaction_timestamps,
-        get_user_by_email,
-        set_password_hash,
-        create_user,
-        log_audit_event,
-        get_audit_log,
-        link_caregiver_to_senior,
-        update_user_balance,
-    )
-
-# ── Supabase implementation ───────────────────────────────────────────────────
-
-else:
+if _USE_SUPABASE:
     from datetime import datetime, timedelta
     from config import VELOCITY_WINDOW_MINUTES
 

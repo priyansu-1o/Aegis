@@ -299,7 +299,7 @@ def api_me():
 def health():
     return jsonify({
         "status":  "ok",
-        "storage": "supabase" if using_supabase() else "sqlite",
+        "storage": "supabase",
     }), 200
 
 
