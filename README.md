@@ -133,10 +133,10 @@ npm run lint
 
 ## Deployment
 
-The backend `Procfile` runs Gunicorn with Gevent:
+The backend `Procfile` runs Gunicorn with a threaded worker. This avoids the Gevent/OpenSSL monkey-patching issue on Render:
 
 ```text
-web: gunicorn --worker-class gevent --workers 1 --bind 0.0.0.0:$PORT app:app
+web: gunicorn --worker-class gthread --threads 4 --workers 1 --bind 0.0.0.0:$PORT app:app
 ```
 
 For production, configure a strong `JWT_SECRET_KEY`, set the deployed frontend in `FRONTEND_ORIGINS`, use `COOKIE_SECURE=true` over HTTPS, and keep Supabase credentials server-side.

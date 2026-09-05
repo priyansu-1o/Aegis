@@ -55,7 +55,7 @@ CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
 socketio = SocketIO(
     app,
     cors_allowed_origins=CORS_ORIGINS,
-    async_mode="gevent" if os.getenv("FLASK_ENV") == "production" else "threading",
+    async_mode=os.getenv("SOCKETIO_ASYNC_MODE", "threading"),
     logger=False,
     engineio_logger=False,
 )
