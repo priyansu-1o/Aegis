@@ -57,6 +57,8 @@ COOKIE_SAMESITE=None
 
 The backend fails at startup when Supabase credentials or the `supabase` package are missing. It does not fall back to local storage.
 
+Render uses Python 3.12.8, pinned in `backend/runtime.txt`. This avoids the current Gevent/OpenSSL incompatibility on Python 3.14.
+
 ### Frontend
 
 In a second terminal:
