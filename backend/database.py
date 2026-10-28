@@ -63,18 +63,21 @@ if _USE_SUPABASE:
     ]
 
     def init_db():
-        client = _client()
-        for user in DEMO_USERS:
-            existing = (
-                client.table("users")
-                .select("user_id")
-                .eq("user_id", user["user_id"])
-                .execute()
-                .data
-            )
-            if not existing:
-                client.table("users").insert(user).execute()
-        print("Supabase initialization complete.")
+        try:
+            client = _client()
+            for user in DEMO_USERS:
+                existing = (
+                    client.table("users")
+                    .select("user_id")
+                    .eq("user_id", user["user_id"])
+                    .execute()
+                    .data
+                )
+                if not existing:
+                    client.table("users").insert(user).execute()
+            print("Supabase initialization complete.")
+        except Exception as exc:
+            print(f"[WARNING] Database initialization skipped or connection failed: {exc}")
 
     def get_user(user_id):
         rows = _client().table("users").select("*").eq("user_id", user_id).execute().data

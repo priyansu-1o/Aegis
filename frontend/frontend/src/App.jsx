@@ -44,13 +44,27 @@ function useAuth() {
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
+    let active = true;
     getMe()
-      .then((data) => setCurrentUser(data.user))
-      .catch(() => setCurrentUser(false))          // false = not authenticated
-      .finally(() => setAuthChecked(true));
+      .then((data) => {
+        if (active) setCurrentUser(data.user);
+      })
+      .catch(() => {
+        if (active) setCurrentUser(false);          // false = not authenticated
+      })
+      .finally(() => {
+        if (active) setAuthChecked(true);
+      });
+
+    return () => { active = false; };
   }, []);
 
-  return { currentUser, setCurrentUser, authChecked };
+  const skipAuthCheck = () => {
+    setCurrentUser(false);
+    setAuthChecked(true);
+  };
+
+  return { currentUser, setCurrentUser, authChecked, skipAuthCheck };
 }
 
 // =============================================================================
@@ -128,15 +142,67 @@ function SeniorApp({ currentUser, onLogout }) {
     </>
   );
 }
-function LoadingScreen() {
+function LoadingScreen({ onSkip }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setElapsed((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div
       style={{
-        minHeight: '100vh', display: 'flex', alignItems: 'center',
-        justifyContent: 'center', background: 'var(--color-bg)',
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--color-bg, #f8fafc)',
+        padding: '1.5rem',
+        textAlign: 'center',
       }}
     >
-      <p className="text-soft" style={{ fontSize: 'var(--text-sm)' }}>Loading…</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.75rem' }}>
+        <img src="/logo.svg" alt="Aegis Logo" style={{ width: '32px', height: '32px' }} />
+        <span style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '0.05em', color: 'var(--primary-navy, #1e293b)' }}>
+          AEGIS
+        </span>
+      </div>
+
+      <div className="spinner-ring" style={{ marginBottom: '1.25rem' }} />
+
+      <p style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--primary-navy, #1e293b)', margin: '0 0 0.5rem' }}>
+        {elapsed < 4 ? 'Connecting to secure server…' : 'Waking up backend server…'}
+      </p>
+
+      <p style={{ fontSize: '0.85rem', color: 'var(--secondary-text, #64748b)', maxWidth: '380px', margin: '0 0 1.5rem', lineHeight: 1.5 }}>
+        {elapsed >= 4
+          ? 'Free deployment instances pause when inactive. Initial spin-up can take up to a minute.'
+          : 'Verifying session and security status…'}
+      </p>
+
+      {elapsed >= 4 && onSkip && (
+        <button
+          onClick={onSkip}
+          style={{
+            background: 'white',
+            border: '1px solid #cbd5e1',
+            padding: '0.5rem 1rem',
+            borderRadius: '8px',
+            fontSize: '0.85rem',
+            fontWeight: 600,
+            color: 'var(--primary-navy, #1e293b)',
+            cursor: 'pointer',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+            transition: 'all 0.2s',
+          }}
+        >
+          Skip waiting & continue to site →
+        </button>
+      )}
     </div>
   );
 }
@@ -146,11 +212,11 @@ function LoadingScreen() {
 // =============================================================================
 
 function App() {
-  const { currentUser, setCurrentUser, authChecked } = useAuth();
+  const { currentUser, setCurrentUser, authChecked, skipAuthCheck } = useAuth();
   const navigate = useNavigate();
 
   // Show a blank loading screen while we check for an existing session
-  if (!authChecked) return <LoadingScreen />;
+  if (!authChecked) return <LoadingScreen onSkip={skipAuthCheck} />;
 
   const handleLogin = (user) => setCurrentUser(user);
 

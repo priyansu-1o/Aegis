@@ -27,22 +27,38 @@ const DEFAULT_OPTS = {
 };
 
 async function _fetch(path, options = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...DEFAULT_OPTS,
-    ...options,
-    headers: { ...DEFAULT_OPTS.headers, ...(options.headers || {}) },
-  });
+  const { timeout = 25000, ...fetchOptions } = options;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
 
-  const body = await res.json().catch(() => ({}));
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...DEFAULT_OPTS,
+      ...fetchOptions,
+      headers: { ...DEFAULT_OPTS.headers, ...(fetchOptions.headers || {}) },
+      signal: fetchOptions.signal || controller.signal,
+    });
 
-  if (!res.ok) {
-    // Attach the status so callers can branch on 401 vs other errors.
-    const err = new Error(body.error || `HTTP ${res.status}`);
-    err.status = res.status;
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      // Attach the status so callers can branch on 401 vs other errors.
+      const err = new Error(body.error || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+
+    return body;
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      const timeoutErr = new Error('Request timed out. The server may still be spinning up.');
+      timeoutErr.status = 408;
+      throw timeoutErr;
+    }
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
-
-  return body;
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -58,8 +74,9 @@ export async function logout() {
   return _fetch('/api/logout', { method: 'POST' });
 }
 
-export async function getMe() {
-  return _fetch('/api/me');
+export async function getMe(options = {}) {
+  // 15 second timeout for session verification on boot
+  return _fetch('/api/me', { timeout: 15000, ...options });
 }
 
 // ── Senior ────────────────────────────────────────────────────────────────────
