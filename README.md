@@ -1,6 +1,38 @@
 # AEGIS
 
-AEGIS is a financial safety layer for seniors and caregivers. It evaluates transfers for scam signals, pauses suspicious payments during a cooling-off window, and gives a connected caregiver the opportunity to approve or block them.
+<div align="center">
+
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+" />
+  <img src="https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white" alt="Node.js 18+" />
+  <img src="https://img.shields.io/badge/Flask-API-000000?logo=flask&logoColor=white" alt="Flask API" />
+  <img src="https://img.shields.io/badge/Supabase-Database-3ECF8E?logo=supabase&logoColor=white" alt="Supabase" />
+  <img src="https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=white" alt="React + Vite" />
+
+  <p>
+    <strong>AEGIS</strong> is a financial safety layer for seniors and caregivers.
+    It evaluates transfers for scam signals, pauses suspicious payments during a cooling-off window,
+    and gives a connected caregiver the opportunity to approve or block them.
+  </p>
+
+</div>
+
+## Overview
+
+AEGIS helps reduce the risk of fraud for older adults by combining:
+
+- risk screening for outgoing transfers
+- a cooling-off pause before suspicious payments complete
+- caregiver review for approval or rejection
+- a simple web experience for both seniors and caregivers
+
+## Features
+
+- Fraud-risk evaluation for transfer requests
+- Cooling-off hold period for flagged activity
+- Caregiver review dashboard for pending transactions
+- Secure session-based authentication using HTTP-only cookies
+- Support for senior-caregiver linkage via user ID
+- Deterministic risk logic configured in `backend/config.py`
 
 ## Architecture
 
@@ -9,32 +41,48 @@ AEGIS is a financial safety layer for seniors and caregivers. It evaluates trans
 - `backend/supabase_schema.sql`: Supabase tables and indexes
 - Supabase is the only supported data store. SQLite has been removed.
 
+## Tech Stack
+
+- Python 3.10+
+- Flask
+- Flask-SocketIO
+- Supabase
+- React
+- Vite
+- Node.js 18+
+
 ## Requirements
+
+Before you begin, make sure you have:
 
 - Python 3.10+
 - Node.js 18+
 - npm
 - A Supabase project
 
-## Setup
+## Quick Start
 
-### Backend
+### 1) Backend
 
 ```powershell
 cd backend
 python -m venv venv
-.\venv\Scripts\Activate.ps1
+./venv/Scripts/Activate.ps1
 pip install -r requirements.txt
 python app.py
 ```
 
 The API runs at `http://localhost:5000`.
 
-On macOS/Linux, activate the environment with `source venv/bin/activate`.
+On macOS/Linux, activate the environment with:
 
-### Supabase
+```bash
+source venv/bin/activate
+```
 
-Run [backend/supabase_schema.sql](backend/supabase_schema.sql) in the Supabase SQL editor, then create `backend/.env`:
+### 2) Supabase
+
+Run [`backend/supabase_schema.sql`](backend/supabase_schema.sql) in the Supabase SQL editor, then create `backend/.env`:
 
 ```env
 SUPABASE_URL=https://your-project.supabase.co
@@ -53,13 +101,15 @@ COOKIE_SECURE=true
 COOKIE_SAMESITE=None
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_ANON_KEY` may be used instead of `SUPABASE_KEY`. Keep all Supabase keys in the backend environment and never expose them through the frontend.
+Notes:
 
-The backend fails at startup when Supabase credentials or the `supabase` package are missing. It does not fall back to local storage.
+- `SUPABASE_SERVICE_ROLE_KEY` or `SUPABASE_ANON_KEY` may be used instead of `SUPABASE_KEY`.
+- Keep all Supabase keys in the backend environment and never expose them through the frontend.
+- The backend fails at startup when Supabase credentials or the `supabase` package are missing.
+- It does not fall back to local storage.
+- Render uses Python 3.12.8, pinned in the repository-root `runtime.txt`. This avoids the current Gevent/OpenSSL incompatibility on Python 3.14.
 
-Render uses Python 3.12.8, pinned in the repository-root `runtime.txt`. This avoids the current Gevent/OpenSSL incompatibility on Python 3.14.
-
-### Frontend
+### 3) Frontend
 
 In a second terminal:
 
@@ -69,16 +119,19 @@ npm install
 npm run dev
 ```
 
-The Vite server normally runs at `http://localhost:5173`. It uses `http://localhost:5000` as the default API URL. To override it, create `frontend/frontend/.env`:
+The Vite server normally runs at `http://localhost:5173`.
+It uses `http://localhost:5000` as the default API URL.
+
+To override it, create `frontend/frontend/.env`:
 
 ```env
 VITE_API_BASE=http://localhost:5000
 ```
 
-## Routes
+## Application Routes
 
 | Route | Purpose |
-|---|---|
+| --- | --- |
 | `/` | Public landing page |
 | `/login` | Sign in for either role |
 | `/signup` | Create a senior or caregiver account |
@@ -87,12 +140,12 @@ VITE_API_BASE=http://localhost:5000
 
 Signup returns a generated permanent User ID. Caregivers can optionally enter a senior's User ID as the link code, or connect later.
 
-## API
+## API Overview
 
 Authenticated requests use the `aegis_token` HTTP-only cookie.
 
 | Method | Endpoint | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `POST` | `/api/signup` | Create an account with `name`, `email`, `password`, `role`, and optional `link_code` |
 | `POST` | `/api/login` | Authenticate with email and password |
 | `POST` | `/api/logout` | Clear the auth cookie |
@@ -115,7 +168,7 @@ Authenticated requests use the `aegis_token` HTTP-only cookie.
 
 ## Validation
 
-Backend:
+### Backend
 
 ```powershell
 cd backend
@@ -123,7 +176,7 @@ python -m compileall -q .
 python -m pytest -q
 ```
 
-Frontend:
+### Frontend
 
 ```powershell
 cd frontend/frontend
@@ -139,8 +192,20 @@ The backend `Procfile` runs Gunicorn with a threaded worker. This avoids the Gev
 web: gunicorn --worker-class gthread --threads 4 --workers 1 --bind 0.0.0.0:$PORT app:app
 ```
 
-For production, configure a strong `JWT_SECRET_KEY`, set the deployed frontend in `FRONTEND_ORIGINS`, use `COOKIE_SECURE=true` over HTTPS, and keep Supabase credentials server-side.
+For production:
+
+- configure a strong `JWT_SECRET_KEY`
+- set the deployed frontend in `FRONTEND_ORIGINS`
+- use `COOKIE_SECURE=true` over HTTPS
+- keep Supabase credentials server-side
 
 ## Scope
 
-Bank transfers are simulated. Risk decisions are deterministic and configured in `backend/config.py`; AEGIS is a prototype and does not replace bank fraud controls or financial advice.
+Bank transfers are simulated. Risk decisions are deterministic and configured in `backend/config.py`.
+AEGIS is a prototype and does not replace bank fraud controls or financial advice.
+
+---
+
+<p align="center">
+  <em>Built to help seniors and caregivers act sooner when suspicious activity appears.</em>
+</p>
